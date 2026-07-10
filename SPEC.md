@@ -1,0 +1,155 @@
+# trigger-engage — Founding Spec (v0 draft, 2026-07-10)
+
+Open-source, self-hostable messaging-automation platform: a drop-in alternative to the way
+Mytherapist.ng uses Customer.io. Define events and drag-and-drop automations in a web UI;
+fire events from any app via an SDK; the engine walks the automation graph and sends
+email / SMS / push.
+
+Two deliverables:
+
+1. **Server** — the platform itself (API, automation engine, builder UI). Its own repo, MIT.
+2. **Laravel SDK** — `composer require trigger-engage/laravel`. First of several SDKs.
+
+---
+
+## 1. What it must replace (ground truth from mytherapist.ng backend)
+
+`backend/app/Services/CustomerIoService.php` is the entire integration surface today:
+
+| Current call | Semantics |
+|---|---|
+| `syncUser($user)` / `syncTherapist($therapist)` | **Identify**: upsert a person (`user-{id}` / `therapist-{id}`) with attributes (email, name, phone, type, country, appointment counts, therapist status) |
+| `trackFirstBooking/FirstCompletion/FirstRating` | **Track**: named event + payload against a person |
+| `trackSessionRated`, `trackWalletFunded` | Same, with analytics-grade payloads (amounts, hour buckets) |
+| `enabled()` + try/catch + `Integration::log` | **Fail-open**: messaging must never break signup/booking |
+| `SyncCustomerIoCommand` | **Backfill**: bulk re-identify existing people |
+
+Call sites: model observers, event listeners, payment webhooks. So the contract is:
+**identify + track, per-person, fire-and-forget, never throws.** That is the SDK's whole job.
+
+Channels already in use at Mytherapist.ng (first-class drivers for MVP):
+- **Email:** ZeptoMail (via Laravel mail) — driver model must also cover SMTP/SES/Mailgun/Postmark for OSS users
+- **SMS:** Termii (Nigeria-first; Twilio later for OSS reach)
+- **Push:** OneSignal (Expo/FCM later)
+
+## 2. Core concepts
+
+- **Workspace** — tenant. Owns API keys, people, events, automations, channels. One server hosts many workspaces.
+- **Person** — recipient. `external_id` (e.g. `user-42`) unique per workspace; `email`, `phone`, free-form `attributes` JSON. Messages are always sent *to a person*; templates read `{{ person.* }}`.
+- **Event** — named thing that happened (`customer_sign_up`). Auto-registered on first receipt, or pre-defined in the UI with an expected-payload schema (for template autocomplete + docs).
+- **Automation** — a graph (nodes + edges) with an event trigger. Draft → Active → Paused. **Versioned**: activating saves an immutable version; in-flight runs finish on the version they started on.
+- **Run** — one person moving through one automation version. Holds current node + `wake_at` for delays.
+- **Template** — per-channel message body (Liquid syntax) with `{{ person.x }}` and `{{ event.x }}` variables.
+- **Channel** — configured provider credentials per workspace (encrypted), one default per type.
+
+## 3. Automation node types
+
+MVP:
+- **Trigger** (exactly one): event name, plus re-entry policy — `every_time` / `one_active_run_per_person` / `once_ever_per_person`
+- **Action: send_email / send_sms / send_push** — references a template + channel
+- **Delay** — fixed duration, or "until next HH:MM in workspace timezone" (quiet hours)
+- **Branch** — predicate on person attributes or event payload (`equals/not/gt/lt/contains/exists`), true/false edges
+- **Exit**
+
+Post-MVP: A/B split, webhook action, wait-for-event (with timeout edge), segment membership condition, goal/conversion tracking.
+
+## 4. Data model (server)
+
+```
+workspaces          id, name, timezone
+api_keys            workspace_id, name, key_hash, last_used_at
+people              workspace_id, external_id, email, phone, attributes json,
+                    unsubscribed_at — UNIQUE(workspace_id, external_id)
+events              workspace_id, name, payload_schema json?, first_seen_at
+                    — UNIQUE(workspace_id, name)
+event_occurrences   workspace_id, event_id, person_id, payload json,
+                    idempotency_key?, occurred_at — UNIQUE(workspace_id, idempotency_key)
+automations         workspace_id, name, status(draft|active|paused), trigger_event_id,
+                    reentry_policy, active_version_id
+automation_versions automation_id, graph json {nodes:[], edges:[]}, published_at
+automation_runs     automation_version_id, person_id, occurrence_id,
+                    status(running|waiting|completed|cancelled|failed),
+                    current_node_id, wake_at, context json
+run_steps           run_id, node_id, type, status, error?, executed_at
+                    — UNIQUE(run_id, node_id, attempt-scope) → no double-sends
+templates           workspace_id, channel(email|sms|push), name, subject?, body,
+                    from_name?, from_address?
+channels            workspace_id, type, driver, credentials (encrypted), is_default
+messages            workspace_id, person_id, run_step_id?, channel, template_id,
+                    provider_message_id?, status(queued|sent|delivered|bounced|failed),
+                    rendered snapshot, sent_at
+suppressions        workspace_id, person_id, channel, reason(unsub|bounce|complaint|manual)
+```
+
+## 5. Engine execution
+
+1. `POST /events` → validate key → upsert person (if inline attributes) → store occurrence → 202.
+2. Queued matcher finds active automations triggered by that event; re-entry policy checked; creates run(s).
+3. Runs advance node-by-node via queued jobs (Horizon/Redis). **Delays persist `wake_at` on the run; a
+   scheduler tick (every minute) re-enqueues due runs.** Not delayed jobs — survives queue flushes and
+   supports multi-day waits on any queue driver.
+4. Every send: check suppressions → render template (Liquid, strict-ish: missing vars render empty +
+   warning in run log) → dispatch through channel driver → record `messages` row. `run_steps`
+   uniqueness makes retries idempotent (an action either completed or it didn't; never twice).
+5. Failures: per-step retries w/ backoff; after N failures the step fails, run continues or fails per
+   node setting (default: skip-and-continue for sends).
+
+## 6. HTTP API (ingestion, v1)
+
+```
+POST /api/v1/events            {name, person_id, data?, idempotency_key?, occurred_at?}
+PUT  /api/v1/people/{ext_id}   {email?, phone?, attributes?}          (upsert/merge)
+POST /api/v1/batch             [{type: event|identify, ...}, ...]     (≤500/req, backfills)
+DELETE /api/v1/people/{ext_id}                                        (GDPR/NDPR erasure)
+Auth: HTTP Basic — username = workspace_id, password = api_key. The server verifies the
+      key exists AND belongs to that workspace; either half alone is useless.
+```
+
+## 7. Laravel SDK (`trigger-engage/laravel`)
+
+```php
+// config/trigger-engage.php: endpoint, workspace_id, api_key, enabled, queue, timeout
+// Initialization requires BOTH workspace_id and api_key (Basic auth pair).
+TriggerEngage::identify('user-42', ['email' => ..., 'first_name' => ..., 'type' => 'user']);
+TriggerEngage::event('customer_sign_up', ['plan' => 'free'], person: 'user-42');
+```
+
+- Fire-and-forget: facade dispatches a queued job (configurable sync mode for local dev);
+  HTTP failures log and swallow — **the SDK never throws into app code** (mirrors the
+  CustomerIoService fail-open pattern).
+- Auto idempotency keys (ULID per call) so job retries can't double-trigger automations.
+- Test fake: `TriggerEngage::fake()` + `assertEventSent('customer_sign_up', fn($e) => ...)`,
+  `assertIdentified('user-42')` — the DX feature that makes adoption easy.
+- Migration at Mytherapist.ng: keep `CustomerIoService`'s public methods, swap its internals
+  to the SDK. Call sites (observers, listeners, webhook drivers) don't change.
+
+## 8. Server stack & builder UI
+
+- **Laravel 12 + MySQL/Postgres + Redis (Horizon)** — matches team expertise, easy self-host
+  (single container + db + redis; ship `docker-compose.yml`).
+- **UI: Inertia + React + shadcn/ui + Tailwind** — the team already knows shadcn from the web
+  apps, and an OSS product needs a polished, contributor-friendly UI. (Filament considered —
+  faster for CRUD — but the canvas is the product; committing to React throughout is simpler.)
+- **Canvas: React Flow (@xyflow/react)** — the industry standard for drag-and-drop node
+  editors. Graph serializes to the `automation_versions.graph` JSON verbatim.
+
+## 9. Roadmap
+
+- **v0.1 — engine core.** Schema, ingestion API, Laravel SDK w/ fake, email channel
+  (SMTP + ZeptoMail), linear automations (trigger → delay → email) built with a simple
+  step-list UI. Prove the loop end-to-end.
+- **v0.2 — the canvas.** React Flow builder, branch nodes, versioning/publish flow,
+  SMS (Termii) + push (OneSignal) channels, per-run timeline view.
+- **v0.3 — production hardening.** Suppressions + unsubscribe links, template editor with
+  preview/test-send, batch/backfill API, delivery webhooks in (bounces), metrics dashboard.
+- **v0.4 — dogfood.** Point mytherapist.ng backend at it behind CustomerIoService,
+  run in shadow mode alongside Customer.io, compare, cut over.
+
+## 10. Open decisions
+
+1. **Repo home** — separate GitHub org (`trigger-engage/server`, `trigger-engage/laravel`) vs
+   personal org. Also verify the name is free on Packagist/GitHub/npm before committing.
+2. **License** — MIT (recommended for adoption) vs AGPL (protects against closed-source hosted clones).
+3. **Payload naming** — SDK facade verb: `event()` (recommended) vs `sendEvent()` as in the pitch.
+4. **Segments/audiences in scope?** Deferred here (event-triggered only for MVP); Customer.io's
+   segment-triggered campaigns are a much bigger lift and current usage doesn't need them.
