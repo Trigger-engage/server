@@ -9,6 +9,13 @@ class Template extends Model
 {
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'settings' => 'array',
+        ];
+    }
+
     public function workspace(): BelongsTo
     {
         return $this->belongsTo(Workspace::class);

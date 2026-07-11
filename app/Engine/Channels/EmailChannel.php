@@ -2,6 +2,7 @@
 
 namespace App\Engine\Channels;
 
+use App\Engine\EmailLayoutRenderer;
 use App\Engine\TemplateRenderer;
 use App\Mail\TemplatedMail;
 use App\Models\Channel;
@@ -14,7 +15,10 @@ use Illuminate\Support\Facades\URL;
 
 class EmailChannel
 {
-    public function __construct(protected TemplateRenderer $renderer) {}
+    public function __construct(
+        protected TemplateRenderer $renderer,
+        protected EmailLayoutRenderer $layouts,
+    ) {}
 
     /**
      * Render and send. The message row is keyed to the already-reserved run
@@ -35,7 +39,8 @@ class EmailChannel
 
         $this->renderer->reset();
         $subject = $this->renderer->render($template->subject ?? '', $context);
-        $body = $this->renderer->render($template->body, $context);
+        $content = $this->renderer->render($template->body, $context);
+        $preheader = $this->renderer->render($template->preheader ?? '', $context);
         $warnings = $this->renderer->missingVariables();
 
         $message = Message::query()->firstOrCreate(
@@ -47,16 +52,13 @@ class EmailChannel
                 'channel' => 'email',
                 'to_address' => $person->email,
                 'subject' => $subject,
-                'body' => $body,
+                'body' => $content,
                 'status' => 'queued',
             ]
         );
 
         $unsubscribeUrl = URL::temporarySignedRoute('unsubscribe.show', now()->addYear(), ['message' => $message->id]);
-
-        if (! str_contains($body, $unsubscribeUrl)) {
-            $body .= '<p style="font-size:12px;color:#64748b"><a href="'.e($unsubscribeUrl).'">Unsubscribe</a></p>';
-        }
+        $body = $this->layouts->render($template, $content, $preheader, $unsubscribeUrl);
 
         if ($message->status === 'sent') {
             return ['message' => $message, 'warnings' => $warnings];

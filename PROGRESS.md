@@ -20,12 +20,14 @@ Founding milestone, shipped 2026-07-10. See [SPEC.md](SPEC.md) for architecture.
 - Email channel: on-the-fly SMTP mailer from encrypted workspace credentials (ZeptoMail-ready),
   log/array drivers for dev/tests; rendered snapshot + status stored per message.
 - Templating: Liquid filters/control flow with `{{ person.* }} / {{ event.* }}`
-  context; missing variables render empty and are written to the run step.
+  context; missing variables render empty and are written to the run step. Email templates
+  have editable content, sender, branding, colors, links and footer copy with the current
+  Mytherapist.ng shell as the default, exact live preview, CSS inlining, and plain-HTML fallback.
 - React + Inertia + React Flow UI: workspace-scoped event/template/channel setup,
   draggable automation editing, event correlation and timeout paths, immutable publish,
   per-run timelines, metrics, and pause controls.
 - `engage:workspace` command + DemoSeeder (working sign-up → delay → welcome-email automation).
-- 43 tests green, including full-loop, branch routing, event correlation and timeout races,
+- 50 tests green, including full-loop, branch routing, event correlation and timeout races,
   automation-wide goal stopping and cancellation,
   delayed-worker precedence, re-entry, matcher/job replay,
   send retry/backoff, template warnings, UI workspace isolation, suppression,
@@ -53,6 +55,8 @@ Completed production-hardening pass:
   atomic match-vs-timeout claiming, and timeline visibility.
 - Automation-wide goal/stop events with correlated matching, durable per-run
   subscriptions, retry/wait cancellation, and goal-aware run timelines.
+- Customizable email-template editor and server-rendered preview with the current
+  Mytherapist.ng email design as the default for new and existing templates.
 
 Credential-dependent gates remain documented in `PRODUCTION.md`: real provider
 verification, shadow comparison, published SDK packaging, deployment and cutover.

@@ -72,6 +72,15 @@ automation freezes an immutable version; in-flight runs finish on the version
 they started on. Re-entry policies: `every_time`, `one_active_run_per_person`,
 `once_ever_per_person`.
 
+Email templates open in a dedicated editor with an exact server-rendered live
+preview. New and migrated email templates default to the current
+Mytherapist.ng design: warm paper background, white card and gold ribbon,
+Plus Jakarta Sans typography, app badges, social links, navy footer, crisis
+copy, and signed unsubscribe link. Subject, preheader, Liquid/HTML content,
+sender override, logo, identity, colors, store links, social links, and footer
+copy are customizable per template. A plain-HTML layout remains available for
+special-purpose messages. Final email CSS is inlined for broad client support.
+
 `wait_for_event` nodes persist until a later event for the same person arrives
 or their deadline passes. Their two edges use `branch: "matched"` and
 `branch: "timed_out"`. Optional match rules correlate an incoming field to the
@@ -107,6 +116,9 @@ The triggering occurrence and payload are retained in the run timeline.
   configurable final action (`continue` by default, or fail the run).
 - **Liquid templates:** filters and control flow are supported; missing output
   variables render empty and are recorded as warnings on the run step.
+- **Preview fidelity:** the editor preview and delivery channel use the same
+  layout renderer and sample Liquid context, so the saved preview matches the
+  stored message snapshot.
 
 ## Deploying the backend
 

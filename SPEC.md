@@ -39,7 +39,9 @@ Channels already in use at Mytherapist.ng (first-class drivers for MVP):
 - **Event** — named thing that happened (`customer_sign_up`). Auto-registered on first receipt, or pre-defined in the UI with an expected-payload schema (for template autocomplete + docs).
 - **Automation** — a graph (nodes + edges) with an event trigger. Draft → Active → Paused. **Versioned**: activating saves an immutable version; in-flight runs finish on the version they started on.
 - **Run** — one person moving through one automation version. Holds current node + `wake_at` for delays.
-- **Template** — per-channel message body (Liquid syntax) with `{{ person.x }}` and `{{ event.x }}` variables.
+- **Template** — per-channel message body (Liquid syntax) with `{{ person.x }}` and
+  `{{ event.x }}` variables. Email templates also own a layout, inbox preheader,
+  sender override, and customizable brand settings; Mytherapist.ng is the default design.
 - **Channel** — configured provider credentials per workspace (encrypted), one default per type.
 
 ## 3. Automation node types
@@ -81,7 +83,7 @@ run_event_waits     run_id, person_id, event_id, node_id, status, match_rules js
 run_goal_subscriptions run_id, person_id, event_id, goal_id, status, match_rules json,
                     occurrence_cursor, reached_occurrence_id?, reached_at?
 templates           workspace_id, channel(email|sms|push), name, subject?, body,
-                    from_name?, from_address?
+                    layout, preheader?, settings json, from_name?, from_address?
 channels            workspace_id, type, driver, credentials (encrypted), is_default
 messages            workspace_id, person_id, run_step_id?, channel, template_id,
                     provider_message_id?, status(queued|sent|delivered|bounced|failed),
@@ -152,8 +154,9 @@ TriggerEngage::event('customer_sign_up', ['plan' => 'free'], person: 'user-42');
   step-list UI. Prove the loop end-to-end.
 - **v0.2 — the canvas.** React Flow builder, branch nodes, versioning/publish flow,
   SMS (Termii) + push (OneSignal) channels, per-run timeline view.
-- **v0.3 — production hardening.** Suppressions + unsubscribe links, template editor with
-  preview/test-send, batch/backfill API, delivery webhooks in (bounces), metrics dashboard.
+- **v0.3 — production hardening.** Suppressions + unsubscribe links, customizable template
+  editor with exact preview (complete; test-send remains), batch/backfill API, delivery
+  webhooks in (bounces), metrics dashboard.
 - **v0.4 — dogfood.** Point mytherapist.ng backend at it behind CustomerIoService,
   run in shadow mode alongside Customer.io, compare, cut over.
 

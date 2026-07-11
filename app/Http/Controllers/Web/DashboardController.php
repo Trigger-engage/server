@@ -22,7 +22,7 @@ class DashboardController extends Controller
                 ->get(['id', 'name', 'payload_schema', 'first_seen_at']),
             'templates' => $workspace->templates()
                 ->orderBy('name')
-                ->get(['id', 'channel', 'name', 'subject', 'body']),
+                ->get(['id', 'channel', 'name', 'subject', 'body', 'layout', 'updated_at']),
             'channels' => $workspace->channels()
                 ->orderByDesc('is_default')
                 ->orderBy('name')

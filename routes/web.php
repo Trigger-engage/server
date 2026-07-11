@@ -22,7 +22,10 @@ Route::post('/unsubscribe/{message}', [UnsubscribeController::class, 'destroy'])
 Route::prefix('app')->middleware(AuthenticateWorkspace::class)->name('engage.')->group(function () {
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::post('/events', [EventDefinitionController::class, 'store'])->name('events.store');
+    Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('templates.preview');
     Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
+    Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+    Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
     Route::post('/channels', [ChannelController::class, 'store'])->name('channels.store');
     Route::post('/automations', [AutomationController::class, 'store'])->name('automations.store');
     Route::get('/automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');

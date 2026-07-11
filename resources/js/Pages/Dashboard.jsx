@@ -7,7 +7,7 @@ function Label({ children }) {
 
 export default function Dashboard({ workspace, events, templates, channels, automations, metrics, recentRuns }) {
     const eventForm = useForm({ name: '' });
-    const templateForm = useForm({ channel: 'email', name: '', subject: '', body: '', from_name: '', from_address: '' });
+    const templateForm = useForm({ channel: 'email', name: '', subject: '', body: '<h1>Hello {{ person.first_name }},</h1>\n<p>Write your message here.</p>', layout: 'mytherapist', preheader: '', from_name: '', from_address: '' });
     const channelForm = useForm({ type: 'email', name: '', driver: 'log', is_default: true, host: '', port: 587, username: '', password: '', encryption: 'tls', base_url: '', api_key: '', secret_key: '', sender_id: '', route: 'dnd', app_id: '', webhook_token: '' });
     const automationForm = useForm({ name: '', trigger_event_id: events[0]?.id ?? '', reentry_policy: 'every_time' });
 
@@ -73,14 +73,15 @@ export default function Dashboard({ workspace, events, templates, channels, auto
 
                 <section className={panelClass}>
                     <h2 className="font-semibold">2. Message template</h2><p className="mt-1 text-sm text-slate-500">Use {'{{ person.* }}'} and {'{{ event.* }}'} variables.</p>
-                    <form onSubmit={submit(templateForm, '/app/templates', ['name', 'subject', 'body'])} className="mt-5 space-y-3">
+                    <form onSubmit={submit(templateForm, '/app/templates')} className="mt-5 space-y-3">
                         <div><Label>Channel</Label><select className={inputClass} value={templateForm.data.channel} onChange={(e) => templateForm.setData('channel', e.target.value)}><option value="email">Email</option><option value="sms">SMS</option><option value="push">Push</option></select></div>
                         <div><Label>Name</Label><input className={inputClass} value={templateForm.data.name} onChange={(e) => templateForm.setData('name', e.target.value)} /></div>
                         <div><Label>Subject</Label><input className={inputClass} value={templateForm.data.subject} onChange={(e) => templateForm.setData('subject', e.target.value)} /></div>
-                        <div><Label>HTML body</Label><textarea rows="4" className={inputClass} value={templateForm.data.body} onChange={(e) => templateForm.setData('body', e.target.value)} /></div>
+                        <div><Label>{templateForm.data.channel === 'email' ? 'Starter HTML body' : 'Message body'}</Label><textarea rows="4" className={inputClass} value={templateForm.data.body} onChange={(e) => templateForm.setData('body', e.target.value)} /></div>
                         <FieldError message={templateForm.errors.body || templateForm.errors.subject || templateForm.errors.name} />
                         <button className={buttonClass} disabled={templateForm.processing}>Create template</button>
                     </form>
+                    <div className="mt-5 divide-y divide-white/10 rounded-lg border border-white/10">{templates.length === 0 && <p className="p-3 text-xs text-slate-500">No templates yet.</p>}{templates.map((template) => <Link key={template.id} href={`/app/templates/${template.id}/edit`} className="flex items-center justify-between gap-3 p-3 text-sm hover:bg-white/5"><span><span className="font-medium text-slate-200">{template.name}</span><span className="mt-0.5 block text-xs text-slate-500">{template.channel}{template.channel === 'email' && ` · ${template.layout === 'plain' ? 'plain' : 'branded'}`}</span></span><span className="text-xs text-emerald-300">Customize →</span></Link>)}</div>
                 </section>
 
                 <section className={panelClass}>
