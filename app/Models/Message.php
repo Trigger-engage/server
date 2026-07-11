@@ -11,7 +11,13 @@ class Message extends Model
 
     protected function casts(): array
     {
-        return ['sent_at' => 'datetime'];
+        return [
+            'sent_at' => 'datetime',
+            'delivered_at' => 'datetime',
+            'opened_at' => 'datetime',
+            'clicked_at' => 'datetime',
+            'bounced_at' => 'datetime',
+        ];
     }
 
     public function workspace(): BelongsTo

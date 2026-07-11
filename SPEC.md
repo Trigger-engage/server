@@ -48,10 +48,14 @@ MVP:
 - **Trigger** (exactly one): event name, plus re-entry policy — `every_time` / `one_active_run_per_person` / `once_ever_per_person`
 - **Action: send_email / send_sms / send_push** — references a template + channel
 - **Delay** — fixed duration, or "until next HH:MM in workspace timezone" (quiet hours)
+- **Wait for event** — resumes on a later event for the same person, optionally correlated to the
+  trigger payload; durable `matched` / `timed_out` edges guarantee a terminal outcome
+- **Goal / stop event** — automation-wide event listener that completes an active run from any node,
+  optionally correlated to the trigger payload
 - **Branch** — predicate on person attributes or event payload (`equals/not/gt/lt/contains/exists`), true/false edges
 - **Exit**
 
-Post-MVP: A/B split, webhook action, wait-for-event (with timeout edge), segment membership condition, goal/conversion tracking.
+Post-MVP: A/B split, webhook action, segment membership condition, conversion reporting.
 
 ## 4. Data model (server)
 
@@ -68,10 +72,14 @@ automations         workspace_id, name, status(draft|active|paused), trigger_eve
                     reentry_policy, active_version_id
 automation_versions automation_id, graph json {nodes:[], edges:[]}, published_at
 automation_runs     automation_version_id, person_id, occurrence_id,
-                    status(running|waiting|completed|cancelled|failed),
+                    status(running|waiting|waiting_event|completed|cancelled|failed),
                     current_node_id, wake_at, context json
 run_steps           run_id, node_id, type, status, error?, executed_at
                     — UNIQUE(run_id, node_id, attempt-scope) → no double-sends
+run_event_waits     run_id, person_id, event_id, node_id, status, match_rules json,
+                    occurrence_cursor, expires_at, matched_occurrence_id?
+run_goal_subscriptions run_id, person_id, event_id, goal_id, status, match_rules json,
+                    occurrence_cursor, reached_occurrence_id?, reached_at?
 templates           workspace_id, channel(email|sms|push), name, subject?, body,
                     from_name?, from_address?
 channels            workspace_id, type, driver, credentials (encrypted), is_default
@@ -88,6 +96,10 @@ suppressions        workspace_id, person_id, channel, reason(unsub|bounce|compla
 3. Runs advance node-by-node via queued jobs (Horizon/Redis). **Delays persist `wake_at` on the run; a
    scheduler tick (every minute) re-enqueues due runs.** Not delayed jobs — survives queue flushes and
    supports multi-day waits on any queue driver.
+   Event waits use the same durable tick plus an occurrence cursor and row lock. A qualifying event
+   recorded before the deadline wins even if its worker runs after the deadline; otherwise timeout wins once.
+   Automation goals use durable per-run subscriptions and the same correlation rules. Goal, wait,
+   timeout, and send-reservation transitions lock the run first so only one state change can win.
 4. Every send: check suppressions → render template (Liquid, strict-ish: missing vars render empty +
    warning in run log) → dispatch through channel driver → record `messages` row. `run_steps`
    uniqueness makes retries idempotent (an action either completed or it didn't; never twice).

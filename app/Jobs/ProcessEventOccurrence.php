@@ -2,6 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Engine\EventWaitManager;
+use App\Engine\GoalManager;
+use App\Engine\Graph;
 use App\Models\Automation;
 use App\Models\AutomationRun;
 use App\Models\EventOccurrence;
@@ -9,6 +12,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Fan an event occurrence out to every active automation it triggers,
@@ -20,12 +24,17 @@ class ProcessEventOccurrence implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public function __construct(public int $occurrenceId)
-    {
-    }
+    public int $tries = 5;
+
+    /** @var array<int, int> */
+    public array $backoff = [10, 60, 300];
+
+    public function __construct(public int $occurrenceId) {}
 
     public function handle(): void
     {
+        $eventWaits = app(EventWaitManager::class);
+        $goals = app(GoalManager::class);
         $occurrence = EventOccurrence::query()->with('person')->find($this->occurrenceId);
 
         // Automations message a person; an anonymous occurrence is data-only.
@@ -33,37 +42,66 @@ class ProcessEventOccurrence implements ShouldQueue
             return;
         }
 
-        $automations = Automation::query()
+        // A goal stops an existing run before the same occurrence is offered
+        // to node-level waits or used to start a new automation run.
+        $goals->matchOccurrence($occurrence);
+        $eventWaits->matchOccurrence($occurrence);
+
+        $automationIds = Automation::query()
             ->where('workspace_id', $occurrence->workspace_id)
             ->where('status', 'active')
             ->where('trigger_event_id', $occurrence->event_id)
             ->whereNotNull('active_version_id')
-            ->get();
+            ->pluck('id');
 
-        foreach ($automations as $automation) {
-            if (! $this->allowedByReentryPolicy($automation, $occurrence)) {
-                continue;
+        foreach ($automationIds as $automationId) {
+            $goalSubscriptionIds = DB::transaction(function () use ($automationId, $occurrence, $goals): array {
+                // Serialize matching per automation so simultaneous events
+                // cannot race a one-active/once-ever re-entry check.
+                $automation = Automation::query()->lockForUpdate()->find($automationId);
+
+                if (! $automation
+                    || $automation->status !== 'active'
+                    || ! $automation->active_version_id
+                    || ! $this->allowedByReentryPolicy($automation, $occurrence)) {
+                    return [];
+                }
+
+                $version = $automation->activeVersion;
+                $graph = new Graph($version->graph);
+                $trigger = $graph->triggerNode();
+
+                if (! $trigger) {
+                    return [];
+                }
+
+                $run = AutomationRun::query()->firstOrCreate(
+                    [
+                        'automation_id' => $automation->id,
+                        'event_occurrence_id' => $occurrence->id,
+                    ],
+                    [
+                        'workspace_id' => $occurrence->workspace_id,
+                        'automation_version_id' => $version->id,
+                        'person_id' => $occurrence->person_id,
+                        'status' => AutomationRun::STATUS_RUNNING,
+                        'current_node_id' => $trigger['id'],
+                    ]
+                );
+
+                if ($run->wasRecentlyCreated) {
+                    $goalSubscriptionIds = $goals->register($run, $graph->goals());
+                    AdvanceAutomationRun::dispatch($run->id)->afterCommit();
+
+                    return $goalSubscriptionIds;
+                }
+
+                return [];
+            });
+
+            foreach ($goalSubscriptionIds as $subscriptionId) {
+                $goals->catchUp($subscriptionId);
             }
-
-            $version = $automation->activeVersion;
-            $graph = new \App\Engine\Graph($version->graph);
-            $trigger = $graph->triggerNode();
-
-            if (! $trigger) {
-                continue;
-            }
-
-            $run = AutomationRun::create([
-                'workspace_id' => $occurrence->workspace_id,
-                'automation_id' => $automation->id,
-                'automation_version_id' => $version->id,
-                'person_id' => $occurrence->person_id,
-                'event_occurrence_id' => $occurrence->id,
-                'status' => AutomationRun::STATUS_RUNNING,
-                'current_node_id' => $trigger['id'],
-            ]);
-
-            AdvanceAutomationRun::dispatch($run->id);
         }
     }
 
@@ -76,7 +114,7 @@ class ProcessEventOccurrence implements ShouldQueue
         return match ($automation->reentry_policy) {
             Automation::REENTRY_ONCE_EVER => ! $runs->exists(),
             Automation::REENTRY_ONE_ACTIVE => ! $runs
-                ->whereIn('status', [AutomationRun::STATUS_RUNNING, AutomationRun::STATUS_WAITING])
+                ->whereIn('status', AutomationRun::activeStatuses())
                 ->exists(),
             default => true,
         };

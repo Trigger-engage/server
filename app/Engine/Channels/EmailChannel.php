@@ -7,37 +7,67 @@ use App\Mail\TemplatedMail;
 use App\Models\Channel;
 use App\Models\Message;
 use App\Models\Person;
+use App\Models\RunStep;
 use App\Models\Template;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 
 class EmailChannel
 {
-    public function __construct(protected TemplateRenderer $renderer)
-    {
-    }
+    public function __construct(protected TemplateRenderer $renderer) {}
 
     /**
-     * Render and send. Returns the persisted Message row (status sent/failed),
-     * or null when the person has no email address to send to.
+     * Render and send. The message row is keyed to the already-reserved run
+     * step, so a retry updates the ledger rather than creating another entry.
+     *
+     * @return array{message: Message, warnings: array<int, string>}|null
      */
-    public function send(Channel $channel, Template $template, Person $person, array $context): ?Message
-    {
+    public function send(
+        Channel $channel,
+        Template $template,
+        Person $person,
+        array $context,
+        RunStep $step,
+    ): ?array {
         if (blank($person->email)) {
             return null;
         }
 
+        $this->renderer->reset();
         $subject = $this->renderer->render($template->subject ?? '', $context);
         $body = $this->renderer->render($template->body, $context);
+        $warnings = $this->renderer->missingVariables();
 
-        $message = Message::create([
-            'workspace_id' => $person->workspace_id,
-            'person_id' => $person->id,
-            'template_id' => $template->id,
-            'channel' => 'email',
+        $message = Message::query()->firstOrCreate(
+            ['run_step_id' => $step->id],
+            [
+                'workspace_id' => $person->workspace_id,
+                'person_id' => $person->id,
+                'template_id' => $template->id,
+                'channel' => 'email',
+                'to_address' => $person->email,
+                'subject' => $subject,
+                'body' => $body,
+                'status' => 'queued',
+            ]
+        );
+
+        $unsubscribeUrl = URL::temporarySignedRoute('unsubscribe.show', now()->addYear(), ['message' => $message->id]);
+
+        if (! str_contains($body, $unsubscribeUrl)) {
+            $body .= '<p style="font-size:12px;color:#64748b"><a href="'.e($unsubscribeUrl).'">Unsubscribe</a></p>';
+        }
+
+        if ($message->status === 'sent') {
+            return ['message' => $message, 'warnings' => $warnings];
+        }
+
+        $message->update([
             'to_address' => $person->email,
             'subject' => $subject,
             'body' => $body,
-            'status' => 'queued',
+            'status' => 'sending',
+            'error' => null,
         ]);
 
         try {
@@ -55,7 +85,7 @@ class EmailChannel
             $message->update(['status' => 'failed', 'error' => $exception->getMessage()]);
         }
 
-        return $message->refresh();
+        return ['message' => $message->refresh(), 'warnings' => $warnings];
     }
 
     protected function mailer(Channel $channel)

@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 
@@ -13,15 +14,14 @@ class TemplatedMail extends Mailable
         public string $renderedBody,
         public ?string $fromAddress = null,
         public ?string $fromName = null,
-    ) {
-    }
+    ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
             subject: $this->renderedSubject,
             from: $this->fromAddress
-                ? new \Illuminate\Mail\Mailables\Address($this->fromAddress, $this->fromName)
+                ? new Address($this->fromAddress, $this->fromName)
                 : null,
         );
     }

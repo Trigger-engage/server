@@ -13,7 +13,10 @@ class EventController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'person_id' => ['nullable', 'string', 'max:150'],
+            'person_id' => ['required', 'string', 'max:150'],
+            'email' => ['nullable', 'email'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'attributes' => ['nullable', 'array'],
             'data' => ['nullable', 'array'],
             'idempotency_key' => ['nullable', 'string', 'max:150'],
             'occurred_at' => ['nullable', 'date'],

@@ -45,7 +45,7 @@ class Ingest
      * Record an event occurrence and kick off automation matching.
      * Returns null when the idempotency key was already seen.
      *
-     * @param  array{name: string, person_id?: ?string, data?: array, idempotency_key?: ?string, occurred_at?: ?string}  $payload
+     * @param  array{name: string, person_id: string, email?: ?string, phone?: ?string, attributes?: array, data?: array, idempotency_key?: ?string, occurred_at?: ?string}  $payload
      */
     public function track(Workspace $workspace, array $payload): ?EventOccurrence
     {
@@ -56,14 +56,11 @@ class Ingest
             'first_seen_at' => now(),
         ]);
 
-        $person = null;
-
-        if (filled($payload['person_id'] ?? null)) {
-            $person = Person::query()->firstOrCreate([
-                'workspace_id' => $workspace->id,
-                'external_id' => $payload['person_id'],
-            ]);
-        }
+        $person = $this->identify($workspace, $payload['person_id'], [
+            'email' => $payload['email'] ?? null,
+            'phone' => $payload['phone'] ?? null,
+            'attributes' => $payload['attributes'] ?? [],
+        ]);
 
         $idempotencyKey = $payload['idempotency_key'] ?? null;
 
@@ -78,7 +75,7 @@ class Ingest
             $occurrence = EventOccurrence::query()->create([
                 'workspace_id' => $workspace->id,
                 'event_id' => $event->id,
-                'person_id' => $person?->id,
+                'person_id' => $person->id,
                 'payload' => $payload['data'] ?? [],
                 'idempotency_key' => $idempotencyKey,
                 'occurred_at' => isset($payload['occurred_at'])

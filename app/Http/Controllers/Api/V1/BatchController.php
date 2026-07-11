@@ -6,15 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Services\Ingest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class BatchController extends Controller
 {
     public function store(Request $request, Ingest $ingest): JsonResponse
     {
-        $validated = $request->validate([
-            'items' => ['required', 'array', 'max:500'],
+        $body = $request->json()->all();
+        $items = array_is_list($body) ? $body : ($body['items'] ?? null);
+
+        $validated = Validator::make(['items' => $items], [
+            'items' => ['required', 'array', 'min:1', 'max:500'],
             'items.*.type' => ['required', 'in:identify,event'],
-            'items.*.person_id' => ['nullable', 'string', 'max:150'],
+            'items.*.person_id' => ['required', 'string', 'max:150'],
             'items.*.name' => ['required_if:items.*.type,event', 'string', 'max:150'],
             'items.*.data' => ['nullable', 'array'],
             'items.*.email' => ['nullable', 'email'],
@@ -22,19 +26,13 @@ class BatchController extends Controller
             'items.*.attributes' => ['nullable', 'array'],
             'items.*.idempotency_key' => ['nullable', 'string', 'max:150'],
             'items.*.occurred_at' => ['nullable', 'date'],
-        ]);
+        ])->validate();
 
         $workspace = $request->attributes->get('workspace');
         $results = ['identified' => 0, 'tracked' => 0, 'duplicates' => 0, 'skipped' => 0];
 
         foreach ($validated['items'] as $item) {
             if ($item['type'] === 'identify') {
-                if (blank($item['person_id'] ?? null)) {
-                    $results['skipped']++;
-
-                    continue;
-                }
-
                 $ingest->identify($workspace, $item['person_id'], $item);
                 $results['identified']++;
 

@@ -6,3 +6,4 @@ use Illuminate\Support\Facades\Schedule;
 // persisted on the run (not as delayed queue jobs) so they survive queue
 // restarts and support multi-day waits on any queue driver.
 Schedule::command('engage:tick')->everyMinute();
+Schedule::command('horizon:snapshot')->everyFiveMinutes();

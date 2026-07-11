@@ -8,6 +8,8 @@ namespace App\Engine;
  */
 class Graph
 {
+    protected array $graph;
+
     /** @var array<string, array> */
     protected array $nodes = [];
 
@@ -16,6 +18,8 @@ class Graph
 
     public function __construct(array $graph)
     {
+        $this->graph = $graph;
+
         foreach ($graph['nodes'] ?? [] as $node) {
             $this->nodes[$node['id']] = $node + ['config' => []];
         }
@@ -37,6 +41,12 @@ class Graph
         }
 
         return null;
+    }
+
+    /** @return array<int, array> */
+    public function goals(): array
+    {
+        return $this->graph['goals'] ?? [];
     }
 
     /**

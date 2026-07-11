@@ -41,7 +41,7 @@ return new class extends Migration
             $table->string('to_address');
             $table->string('subject')->nullable();
             $table->text('body')->nullable(); // rendered snapshot
-            $table->string('status')->default('queued'); // queued | sent | delivered | bounced | failed
+            $table->string('status')->default('queued'); // queued | sending | sent | delivered | bounced | failed
             $table->string('provider_message_id')->nullable();
             $table->text('error')->nullable();
             $table->timestamp('sent_at')->nullable();

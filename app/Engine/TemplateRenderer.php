@@ -3,38 +3,36 @@
 namespace App\Engine;
 
 use Illuminate\Support\Arr;
+use Liquid\Template;
 
 /**
- * Minimal {{ dot.path }} substitution over the run context
- * ({{ person.first_name }}, {{ event.plan }}). Missing variables render
- * empty and are reported so the run log can surface a warning.
- * Deliberately dependency-free for v0.1; full Liquid support can slot in
- * behind this same interface later.
+ * Liquid rendering over the run context. Missing output variables are
+ * collected before rendering so the run timeline can surface warnings.
  */
 class TemplateRenderer
 {
     /** @var array<int, string> */
     protected array $missing = [];
 
-    public function render(string $template, array $context): string
+    public function reset(): void
     {
         $this->missing = [];
+    }
 
-        return preg_replace_callback(
-            '/\{\{\s*([a-zA-Z0-9_.\-]+)\s*\}\}/',
-            function (array $matches) use ($context) {
-                $value = Arr::get($context, $matches[1]);
+    public function render(string $template, array $context): string
+    {
+        preg_match_all('/\{\{\s*([a-zA-Z0-9_.\-]+)/', $template, $matches);
 
-                if (is_null($value)) {
-                    $this->missing[] = $matches[1];
+        foreach ($matches[1] ?? [] as $path) {
+            if (is_null(Arr::get($context, $path))) {
+                $this->missing[] = $path;
+            }
+        }
 
-                    return '';
-                }
+        $liquid = new Template;
+        $liquid->parse($template);
 
-                return is_scalar($value) ? (string) $value : json_encode($value);
-            },
-            $template
-        );
+        return $liquid->render($context);
     }
 
     /** @return array<int, string> */

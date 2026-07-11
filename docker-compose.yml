@@ -1,0 +1,78 @@
+services:
+  app:
+    build:
+      context: .
+      target: app
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on: [app]
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    restart: unless-stopped
+
+  horizon:
+    build:
+      context: .
+      target: app
+    command: php artisan horizon
+    env_file: .env
+    depends_on: [app, redis]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  scheduler:
+    build:
+      context: .
+      target: app
+    command: php artisan schedule:work
+    env_file: .env
+    depends_on: [app, redis]
+    restart: unless-stopped
+    volumes:
+      - app-storage:/var/www/html/storage
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-trigger_engage}
+      POSTGRES_USER: ${DB_USERNAME:-trigger_engage}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-trigger_engage}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  app-storage:
+  postgres-data:
+  redis-data:

@@ -29,7 +29,10 @@ class IngestionApiTest extends TestCase
             'Authorization' => 'Basic '.base64_encode($workspaceB->public_id.':'.$keyA),
         ])->assertStatus(401);
 
-        $this->postJson('/api/v1/events', ['name' => 'x'], $this->authHeaders($workspaceA, $keyA))
+        $this->postJson('/api/v1/events', [
+            'name' => 'x',
+            'person_id' => 'user-1',
+        ], $this->authHeaders($workspaceA, $keyA))
             ->assertStatus(202);
     }
 
@@ -52,6 +55,31 @@ class IngestionApiTest extends TestCase
             'external_id' => 'user-42',
         ]);
         $this->assertSame(1, EventOccurrence::count());
+    }
+
+    public function test_event_can_upsert_inline_person_attributes(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+
+        $this->postJson('/api/v1/events', [
+            'name' => 'customer_sign_up',
+            'person_id' => 'user-42',
+            'email' => 'ada@example.com',
+            'attributes' => ['first_name' => 'Ada'],
+        ], $this->authHeaders($workspace, $key))->assertStatus(202);
+
+        $person = Person::sole();
+        $this->assertSame('ada@example.com', $person->email);
+        $this->assertSame(['first_name' => 'Ada'], $person->getAttribute('attributes'));
+    }
+
+    public function test_event_requires_a_person(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+
+        $this->postJson('/api/v1/events', ['name' => 'customer_sign_up'], $this->authHeaders($workspace, $key))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('person_id');
     }
 
     public function test_idempotency_key_deduplicates(): void
@@ -107,6 +135,18 @@ class IngestionApiTest extends TestCase
         ]], $this->authHeaders($workspace, $key))
             ->assertStatus(202)
             ->assertJson(['identified' => 1, 'tracked' => 2, 'duplicates' => 1]);
+    }
+
+    public function test_batch_accepts_the_spec_top_level_array_shape(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+
+        $this->postJson('/api/v1/batch', [
+            ['type' => 'identify', 'person_id' => 'user-1', 'email' => 'ada@example.com'],
+            ['type' => 'event', 'name' => 'customer_sign_up', 'person_id' => 'user-1'],
+        ], $this->authHeaders($workspace, $key))
+            ->assertAccepted()
+            ->assertJson(['identified' => 1, 'tracked' => 1]);
     }
 
     public function test_person_deletion_is_workspace_scoped(): void

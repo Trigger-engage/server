@@ -37,7 +37,7 @@ return new class extends Migration
             $table->foreignId('automation_version_id')->constrained()->cascadeOnDelete();
             $table->foreignId('person_id')->constrained('people')->cascadeOnDelete();
             $table->foreignId('event_occurrence_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('status')->default('running'); // running | waiting | completed | cancelled | failed
+            $table->string('status')->default('running'); // running | waiting | waiting_event | completed | cancelled | failed
             $table->string('current_node_id')->nullable();
             $table->timestamp('wake_at')->nullable();
             $table->json('context')->nullable();
@@ -52,7 +52,7 @@ return new class extends Migration
             $table->foreignId('automation_run_id')->constrained()->cascadeOnDelete();
             $table->string('node_id');
             $table->string('type');
-            $table->string('status'); // completed | skipped | failed
+            $table->string('status'); // processing | retrying | completed | skipped | failed
             $table->json('output')->nullable();
             $table->text('error')->nullable();
             $table->timestamp('executed_at');

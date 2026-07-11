@@ -2,12 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Engine\RunEngine;
+use App\Jobs\AdvanceAutomationRun;
+use App\Jobs\ProcessEventOccurrence;
 use App\Mail\TemplatedMail;
 use App\Models\Automation;
 use App\Models\AutomationRun;
+use App\Models\EventOccurrence;
 use App\Models\Message;
 use App\Models\Person;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
@@ -260,5 +265,167 @@ class AutomationEngineTest extends TestCase
         // The in-flight run still executes the version it started on.
         Mail::assertSent(TemplatedMail::class, fn ($m) => $m->renderedSubject === 'Original');
         Mail::assertNotSent(TemplatedMail::class, fn ($m) => $m->renderedSubject === 'Rewritten');
+    }
+
+    public function test_replayed_matcher_job_does_not_create_a_duplicate_run(): void
+    {
+        Mail::fake();
+
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->makeAutomation($workspace, 'customer_sign_up', $this->linearEmailGraph($template, $channel));
+
+        Person::create([
+            'workspace_id' => $workspace->id,
+            'external_id' => 'user-42',
+            'email' => 'ada@example.com',
+        ]);
+
+        $this->postJson('/api/v1/events', [
+            'name' => 'customer_sign_up',
+            'person_id' => 'user-42',
+        ], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        (new ProcessEventOccurrence(EventOccurrence::sole()->id))->handle();
+
+        $this->assertSame(1, AutomationRun::count());
+        Mail::assertSentCount(1);
+    }
+
+    public function test_replayed_advance_job_does_not_send_twice(): void
+    {
+        Mail::fake();
+
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->makeAutomation($workspace, 'customer_sign_up', $this->linearEmailGraph($template, $channel));
+
+        Person::create([
+            'workspace_id' => $workspace->id,
+            'external_id' => 'user-42',
+            'email' => 'ada@example.com',
+        ]);
+
+        $this->postJson('/api/v1/events', [
+            'name' => 'customer_sign_up',
+            'person_id' => 'user-42',
+        ], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        (new AdvanceAutomationRun(AutomationRun::sole()->id))->handle(app(RunEngine::class));
+
+        Mail::assertSentCount(1);
+        $this->assertSame(1, Message::count());
+    }
+
+    public function test_send_failures_retry_with_backoff_then_continue(): void
+    {
+        $this->freezeSecond();
+
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $workspace->channels()->create([
+            'type' => 'email',
+            'driver' => 'mailer-that-does-not-exist',
+            'name' => 'Broken channel',
+            'is_default' => true,
+        ]);
+        $graph = $this->linearEmailGraph($template, $channel);
+        $graph['nodes'][1]['config']['retry_attempts'] = 2;
+        $graph['nodes'][1]['config']['retry_backoff_seconds'] = [1];
+        $this->makeAutomation($workspace, 'customer_sign_up', $graph);
+
+        Person::create([
+            'workspace_id' => $workspace->id,
+            'external_id' => 'user-42',
+            'email' => 'ada@example.com',
+        ]);
+
+        $this->postJson('/api/v1/events', [
+            'name' => 'customer_sign_up',
+            'person_id' => 'user-42',
+        ], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        $run = AutomationRun::sole();
+        $step = $run->steps()->where('node_id', 'send')->sole();
+        $this->assertSame(AutomationRun::STATUS_WAITING, $run->status);
+        $this->assertSame('retrying', $step->status);
+        $this->assertSame(1, $step->attempts);
+
+        $this->travel(2)->seconds();
+        $this->artisan('engage:tick');
+
+        $this->assertSame(AutomationRun::STATUS_COMPLETED, $run->refresh()->status);
+        $this->assertSame('failed', $step->refresh()->status);
+        $this->assertSame(2, $step->attempts);
+        $this->assertSame(1, Message::count());
+    }
+
+    public function test_missing_template_variables_are_logged_on_the_step(): void
+    {
+        Mail::fake();
+
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate(
+            $workspace,
+            'Hello {{ person.missing_name }}',
+            '<p>{{ event.missing_value }}</p>'
+        );
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->makeAutomation($workspace, 'customer_sign_up', $this->linearEmailGraph($template, $channel));
+
+        Person::create([
+            'workspace_id' => $workspace->id,
+            'external_id' => 'user-42',
+            'email' => 'ada@example.com',
+        ]);
+
+        $this->postJson('/api/v1/events', [
+            'name' => 'customer_sign_up',
+            'person_id' => 'user-42',
+        ], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        $warnings = AutomationRun::sole()->steps()->where('node_id', 'send')->sole()->output['warnings'];
+
+        $this->assertCount(2, $warnings);
+        $this->assertStringContainsString('person.missing_name', $warnings[0]);
+        $this->assertStringContainsString('event.missing_value', $warnings[1]);
+    }
+
+    public function test_termii_sms_action_sends_and_records_provider_id(): void
+    {
+        Http::fake(['termii.test/*' => Http::response(['code' => 'ok', 'message_id_str' => 'termii-123'])]);
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create(['channel' => 'sms', 'name' => 'SMS', 'body' => 'Hi {{ person.first_name }}']);
+        $channel = $workspace->channels()->create(['type' => 'sms', 'driver' => 'termii', 'name' => 'Termii', 'is_default' => true, 'credentials' => ['base_url' => 'https://termii.test', 'api_key' => 'key', 'sender_id' => 'Therapy', 'route' => 'dnd']]);
+        $this->makeAutomation($workspace, 'remind', [
+            'nodes' => [['id' => 'trigger', 'type' => 'trigger', 'config' => []], ['id' => 'send', 'type' => 'send_sms', 'config' => ['template_id' => $template->id, 'channel_id' => $channel->id]], ['id' => 'done', 'type' => 'exit', 'config' => []]],
+            'edges' => [['from' => 'trigger', 'to' => 'send'], ['from' => 'send', 'to' => 'done']],
+        ]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42', 'phone' => '+2348012345678', 'attributes' => ['first_name' => 'Ada']]);
+
+        $this->postJson('/api/v1/events', ['name' => 'remind', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        $this->assertDatabaseHas('messages', ['channel' => 'sms', 'status' => 'sent', 'provider_message_id' => 'termii-123']);
+        Http::assertSent(fn ($request) => $request['to'] === '2348012345678' && $request['channel'] === 'dnd');
+    }
+
+    public function test_onesignal_push_action_targets_external_id(): void
+    {
+        Http::fake(['api.onesignal.com/*' => Http::response(['id' => 'push-123'])]);
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create(['channel' => 'push', 'name' => 'Push', 'subject' => 'Reminder', 'body' => 'Hi Ada']);
+        $channel = $workspace->channels()->create(['type' => 'push', 'driver' => 'onesignal', 'name' => 'OneSignal', 'is_default' => true, 'credentials' => ['app_id' => 'app', 'api_key' => 'key']]);
+        $this->makeAutomation($workspace, 'remind', [
+            'nodes' => [['id' => 'trigger', 'type' => 'trigger', 'config' => []], ['id' => 'send', 'type' => 'send_push', 'config' => ['template_id' => $template->id, 'channel_id' => $channel->id]], ['id' => 'done', 'type' => 'exit', 'config' => []]],
+            'edges' => [['from' => 'trigger', 'to' => 'send'], ['from' => 'send', 'to' => 'done']],
+        ]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42']);
+
+        $this->postJson('/api/v1/events', ['name' => 'remind', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        $this->assertDatabaseHas('messages', ['channel' => 'push', 'status' => 'sent', 'provider_message_id' => 'push-123']);
+        Http::assertSent(fn ($request) => $request['include_aliases']['external_id'] === ['user-42']);
     }
 }
