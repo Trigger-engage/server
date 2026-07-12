@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Engine\Channels;
+namespace TriggerEngage\Server\Engine\Channels;
 
-use App\Engine\EmailLayoutRenderer;
-use App\Engine\TemplateRenderer;
-use App\Mail\TemplatedMail;
-use App\Models\Channel;
-use App\Models\Message;
-use App\Models\Person;
-use App\Models\RunStep;
-use App\Models\Template;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
+use TriggerEngage\Server\Engine\EmailLayoutRenderer;
+use TriggerEngage\Server\Engine\TemplateRenderer;
+use TriggerEngage\Server\Mail\TemplatedMail;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
+use TriggerEngage\Server\Models\RunStep;
+use TriggerEngage\Server\Models\Template;
 
 class EmailChannel
 {
@@ -31,7 +31,8 @@ class EmailChannel
         Template $template,
         Person $person,
         array $context,
-        RunStep $step,
+        ?RunStep $step = null,
+        ?Message $message = null,
     ): ?array {
         if (blank($person->email)) {
             return null;
@@ -43,8 +44,8 @@ class EmailChannel
         $preheader = $this->renderer->render($template->preheader ?? '', $context);
         $warnings = $this->renderer->missingVariables();
 
-        $message = Message::query()->firstOrCreate(
-            ['run_step_id' => $step->id],
+        $message ??= Message::query()->firstOrCreate(
+            ['run_step_id' => $step?->id],
             [
                 'workspace_id' => $person->workspace_id,
                 'person_id' => $person->id,

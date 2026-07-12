@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
-use App\Engine\Channels\EmailChannel;
-use App\Engine\Channels\PushChannel;
-use App\Engine\Channels\SmsChannel;
-use App\Models\AutomationRun;
-use App\Models\Channel;
-use App\Models\Message;
-use App\Models\RunStep;
-use App\Models\Template;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use TriggerEngage\Server\Engine\Channels\EmailChannel;
+use TriggerEngage\Server\Engine\Channels\PushChannel;
+use TriggerEngage\Server\Engine\Channels\SmsChannel;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\RunStep;
+use TriggerEngage\Server\Models\Template;
 
 class RunEngine
 {
@@ -164,6 +164,30 @@ class RunEngine
                             'current_node_id' => $node['id'],
                             'context' => array_merge($run->context ?? [], [
                                 'branch:'.$node['id'] => $result ? 'true' : 'false',
+                            ]),
+                        ]);
+
+                    if (! $updated) {
+                        return;
+                    }
+
+                    break;
+
+                case 'split':
+                    // Deterministic weighted assignment: the same person always
+                    // lands on the same variant of the same node, so re-runs of
+                    // this advance never reshuffle the experiment.
+                    $variant = $this->pickVariant($run, $node);
+
+                    $this->recordStep($run, $node, 'completed', ['variant' => $variant]);
+
+                    $updated = AutomationRun::query()
+                        ->whereKey($run->id)
+                        ->where('status', AutomationRun::STATUS_RUNNING)
+                        ->update([
+                            'current_node_id' => $node['id'],
+                            'context' => array_merge($run->context ?? [], [
+                                'branch:'.$node['id'] => $variant,
                             ]),
                         ]);
 
@@ -421,6 +445,38 @@ class RunEngine
         return $channelId
             ? $query->find($channelId)
             : $query->orderByDesc('is_default')->first();
+    }
+
+    /**
+     * Weighted, deterministic variant assignment. Hashing the person + node id
+     * keeps assignment stable across retries while distributing people across
+     * variants in proportion to their weights.
+     */
+    protected function pickVariant(AutomationRun $run, array $node): ?string
+    {
+        $variants = array_values($node['config']['variants'] ?? []);
+
+        if ($variants === []) {
+            return null;
+        }
+
+        $weights = array_map(fn (array $variant) => max(1, (int) ($variant['weight'] ?? 1)), $variants);
+        $total = array_sum($weights);
+
+        $identity = $run->person->external_id ?? (string) $run->person->id;
+        $bucket = crc32($identity.'|'.$node['id']) % $total;
+
+        $cumulative = 0;
+
+        foreach ($variants as $index => $variant) {
+            $cumulative += $weights[$index];
+
+            if ($bucket < $cumulative) {
+                return (string) ($variant['key'] ?? $index);
+            }
+        }
+
+        return (string) ($variants[array_key_last($variants)]['key'] ?? array_key_last($variants));
     }
 
     protected function wakeAt(array $config, AutomationRun $run): Carbon

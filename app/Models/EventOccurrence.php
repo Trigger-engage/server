@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,13 +9,10 @@ class EventOccurrence extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'payload' => 'array',
-            'occurred_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'payload' => 'array',
+        'occurred_at' => 'datetime',
+    ];
 
     public function workspace(): BelongsTo
     {

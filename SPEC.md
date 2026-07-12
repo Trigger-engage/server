@@ -35,7 +35,12 @@ Channels already in use at Mytherapist.ng (first-class drivers for MVP):
 ## 2. Core concepts
 
 - **Workspace** — tenant. Owns API keys, people, events, automations, channels. One server hosts many workspaces.
-- **Person** — recipient. `external_id` (e.g. `user-42`) unique per workspace; `email`, `phone`, free-form `attributes` JSON. Messages are always sent *to a person*; templates read `{{ person.* }}`.
+- **Person** — recipient. `external_id` (e.g. `user-42`) unique per workspace;
+  `email`, `phone`, and typed free-form properties JSON (`attributes` remains the
+  backward-compatible alias). Templates read flattened `{{ person.* }}` values and
+  the explicit `{{ person.properties.* }}` namespace. A person may start **anonymous**
+  (null `external_id`, keyed by a device/session `anonymous_id`) and be merged into a
+  known person on identify.
 - **Event** — named thing that happened (`customer_sign_up`). Auto-registered on first receipt, or pre-defined in the UI with an expected-payload schema (for template autocomplete + docs).
 - **Automation** — a graph (nodes + edges) with an event trigger. Draft → Active → Paused. **Versioned**: activating saves an immutable version; in-flight runs finish on the version they started on.
 - **Run** — one person moving through one automation version. Holds current node + `wake_at` for delays.
@@ -43,6 +48,10 @@ Channels already in use at Mytherapist.ng (first-class drivers for MVP):
   `{{ event.x }}` variables. Email templates also own a layout, inbox preheader,
   sender override, and customizable brand settings; Mytherapist.ng is the default design.
 - **Channel** — configured provider credentials per workspace (encrypted), one default per type.
+- **Segment** — reusable audience. Manual membership is managed through the API/SDK;
+  event-driven membership adds a person idempotently whenever its configured event fires;
+  rule-based membership is a boolean rule over attributes and behaviour that recomputes itself.
+- **Broadcast** — one-time email, SMS, or push campaign to a point-in-time snapshot of a segment.
 
 ## 3. Automation node types
 
@@ -57,18 +66,23 @@ MVP:
 - **Branch** — predicate on person attributes or event payload (`equals/not/gt/lt/contains/exists`), true/false edges
 - **Exit**
 
-Post-MVP: A/B split, webhook action, segment membership condition, conversion reporting.
+Shipped since MVP:
+- **A/B split** — routes each person to one of 2–4 weighted message variants (deterministic per
+  person), converging back to the journey, with live per-variant conversion results.
+
+Post-MVP: webhook action node, segment-membership condition node.
 
 ## 4. Data model (server)
 
 ```
 workspaces          id, name, timezone
 api_keys            workspace_id, name, key_hash, last_used_at
-people              workspace_id, external_id, email, phone, attributes json,
-                    unsubscribed_at — UNIQUE(workspace_id, external_id)
+people              workspace_id, external_id?, anonymous_id?, email, phone, attributes json,
+                    unsubscribed_at — UNIQUE(workspace_id, external_id),
+                    UNIQUE(workspace_id, anonymous_id)
 events              workspace_id, name, payload_schema json?, first_seen_at
                     — UNIQUE(workspace_id, name)
-event_occurrences   workspace_id, event_id, person_id, payload json,
+event_occurrences   workspace_id, event_id, person_id?, anonymous_id?, payload json,
                     idempotency_key?, occurred_at — UNIQUE(workspace_id, idempotency_key)
 automations         workspace_id, name, status(draft|active|paused), trigger_event_id,
                     reentry_policy, active_version_id
@@ -89,6 +103,11 @@ messages            workspace_id, person_id, run_step_id?, channel, template_id,
                     provider_message_id?, status(queued|sent|delivered|bounced|failed),
                     rendered snapshot, sent_at
 suppressions        workspace_id, person_id, channel, reason(unsub|bounce|complaint|manual)
+segments            workspace_id, public_id, name, type(manual|event|rule), event_id?,
+                    rules json?, recomputed_at?
+segment_person      segment_id, person_id, source(api|event|rule), event_occurrence_id?, added_at
+broadcasts          workspace_id, segment_id, template_id, channel_id, channel, status
+broadcast_recipients broadcast_id, person_id, message_id?, status, error?, sent_at?
 ```
 
 ## 5. Engine execution
@@ -155,10 +174,23 @@ TriggerEngage::event('customer_sign_up', ['plan' => 'free'], person: 'user-42');
 - **v0.2 — the canvas.** React Flow builder, branch nodes, versioning/publish flow,
   SMS (Termii) + push (OneSignal) channels, per-run timeline view.
 - **v0.3 — production hardening.** Suppressions + unsubscribe links, customizable template
-  editor with exact preview (complete; test-send remains), batch/backfill API, delivery
-  webhooks in (bounces), metrics dashboard.
+  editor with exact preview (complete; test-send remains), responsive SaaS management
+  shell with dedicated resource pages, batch/backfill API, delivery webhooks in (bounces),
+  metrics dashboard.
+- **v0.35 — audiences.** Manual and event-driven segments, SDK membership operations,
+  snapshot-based segment broadcasts, queued per-recipient delivery and campaign reporting.
+- **v0.36 — content authoring.** Visual email composer with a lossless HTML/Liquid
+  escape hatch, reusable formatting controls, variable insertion, and exact rendered preview.
+- **v0.37 — customer profiles.** Searchable People UI, typed property editor, API/SDK
+  property mutation, profile activity and segment context, and legacy attribute compatibility.
+- **v0.38 — dual-mode distribution.** The same server code runs standalone or as the
+  `trigger-engage/server` Composer package, with isolated migrations, configurable routes,
+  host authorization, published UI assets, and direct in-process SDK dispatch.
 - **v0.4 — dogfood.** Point mytherapist.ng backend at it behind CustomerIoService,
   run in shadow mode alongside Customer.io, compare, cut over.
+- **v0.5 — Customer.io parity.** Rule-based (behavioural) segments, A/B split node with
+  per-variant results, anonymous → identified profile merge, and a time-series analytics
+  dashboard. See the [changelog](../CHANGELOG.md).
 
 ## 10. Open decisions
 
@@ -166,5 +198,5 @@ TriggerEngage::event('customer_sign_up', ['plan' => 'free'], person: 'user-42');
    personal org. Also verify the name is free on Packagist/GitHub/npm before committing.
 2. **License** — MIT (recommended for adoption) vs AGPL (protects against closed-source hosted clones).
 3. **Payload naming** — SDK facade verb: `event()` (recommended) vs `sendEvent()` as in the pitch.
-4. **Segments/audiences in scope?** Deferred here (event-triggered only for MVP); Customer.io's
-   segment-triggered campaigns are a much bigger lift and current usage doesn't need them.
+4. **Segments/audiences in scope?** Resolved: manual, event-driven, and rule-based
+   (behavioural) membership plus one-time segment broadcasts are all implemented.

@@ -132,7 +132,7 @@ return [
     */
 
     'silenced' => [
-        // App\Jobs\ExampleJob::class,
+        // TriggerEngage\Server\Jobs\ExampleJob::class,
     ],
 
     'silenced_tags' => [

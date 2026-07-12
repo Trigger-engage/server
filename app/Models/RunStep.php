@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,14 +10,11 @@ class RunStep extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'output' => 'array',
-            'executed_at' => 'datetime',
-            'next_attempt_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'output' => 'array',
+        'executed_at' => 'datetime',
+        'next_attempt_at' => 'datetime',
+    ];
 
     public function run(): BelongsTo
     {

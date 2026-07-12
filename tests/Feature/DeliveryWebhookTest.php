@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Message;
-use App\Models\Person;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
 
 class DeliveryWebhookTest extends TestCase
 {

@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace TriggerEngage\Server\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    protected $rootView = 'app';
+    protected $rootView = 'trigger-engage::app';
 
     public function share(Request $request): array
     {
@@ -15,6 +15,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }

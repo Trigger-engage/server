@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1;
+namespace TriggerEngage\Server\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
-use App\Jobs\ProcessDeliveryWebhook;
-use App\Models\Channel;
-use App\Models\WebhookEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use TriggerEngage\Server\Http\Controllers\Controller;
+use TriggerEngage\Server\Jobs\ProcessDeliveryWebhook;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\WebhookEvent;
 
 class DeliveryWebhookController extends Controller
 {

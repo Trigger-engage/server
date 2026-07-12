@@ -1,38 +1,39 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
-    "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "name": "trigger-engage/server",
+    "type": "library",
+    "description": "Self-hosted or embedded Laravel messaging automation platform.",
+    "keywords": ["laravel", "messaging", "automation", "email", "sms", "push", "customer-io"],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.2",
         "inertiajs/inertia-laravel": "^2.0",
-        "laravel/framework": "^13.8",
+        "laravel/framework": "^10.48|^11.0|^12.0|^13.8",
         "laravel/horizon": "^5.47",
-        "laravel/tinker": "^3.0",
         "liquid/liquid": "^1.4",
-        "predis/predis": "^3.5"
+        "predis/predis": "^3.5",
+        "trigger-engage/laravel": "^0.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
+        "laravel/tinker": "^2.9|^3.0",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "phpunit/phpunit": "^12.5.12"
     },
     "autoload": {
         "psr-4": {
-            "App\\": "app/",
-            "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
+            "TriggerEngage\\Server\\": "app/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
         }
     },
     "scripts": {
@@ -73,9 +74,23 @@
     },
     "extra": {
         "laravel": {
-            "dont-discover": []
+            "providers": [
+                "TriggerEngage\\Server\\Providers\\TriggerEngageServiceProvider"
+            ]
         }
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../laravel-sdk",
+            "options": {
+                "symlink": false,
+                "versions": {
+                    "trigger-engage/laravel": "0.2.0"
+                }
+            }
+        }
+    ],
     "config": {
         "optimize-autoloader": true,
         "preferred-install": "dist",
@@ -84,6 +99,19 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }
+    },
+    "archive": {
+        "exclude": [
+            "/.env",
+            "/.git",
+            "/database/*.sqlite*",
+            "/node_modules",
+            "/public/build",
+            "/public/vendor",
+            "/storage/logs",
+            "/tests",
+            "/vendor"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true

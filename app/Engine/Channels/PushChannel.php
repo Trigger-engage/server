@@ -1,21 +1,21 @@
 <?php
 
-namespace App\Engine\Channels;
+namespace TriggerEngage\Server\Engine\Channels;
 
-use App\Engine\TemplateRenderer;
-use App\Models\Channel;
-use App\Models\Message;
-use App\Models\Person;
-use App\Models\RunStep;
-use App\Models\Template;
 use Illuminate\Support\Facades\Http;
+use TriggerEngage\Server\Engine\TemplateRenderer;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
+use TriggerEngage\Server\Models\RunStep;
+use TriggerEngage\Server\Models\Template;
 
 class PushChannel
 {
     public function __construct(protected TemplateRenderer $renderer) {}
 
     /** @return array{message: Message, warnings: array<int, string>}|null */
-    public function send(Channel $channel, Template $template, Person $person, array $context, RunStep $step): ?array
+    public function send(Channel $channel, Template $template, Person $person, array $context, ?RunStep $step = null, ?Message $message = null): ?array
     {
         $externalId = ($person->getAttribute('attributes') ?? [])['onesignal_external_id'] ?? $person->external_id;
 
@@ -27,8 +27,8 @@ class PushChannel
         $subject = $this->renderer->render($template->subject ?? '', $context);
         $body = $this->renderer->render($template->body, $context);
         $credentials = $channel->credentials ?? [];
-        $message = Message::query()->firstOrCreate(
-            ['run_step_id' => $step->id],
+        $message ??= Message::query()->firstOrCreate(
+            ['run_step_id' => $step?->id],
             [
                 'workspace_id' => $person->workspace_id,
                 'person_id' => $person->id,

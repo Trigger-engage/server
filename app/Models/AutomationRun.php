@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,13 +42,10 @@ class AutomationRun extends Model
         });
     }
 
-    protected function casts(): array
-    {
-        return [
-            'wake_at' => 'datetime',
-            'context' => 'array',
-        ];
-    }
+    protected $casts = [
+        'wake_at' => 'datetime',
+        'context' => 'array',
+    ];
 
     public function workspace(): BelongsTo
     {

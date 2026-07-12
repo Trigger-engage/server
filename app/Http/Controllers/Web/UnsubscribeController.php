@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Http\Controllers\Web;
+namespace TriggerEngage\Server\Http\Controllers\Web;
 
-use App\Http\Controllers\Controller;
-use App\Models\Message;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use TriggerEngage\Server\Http\Controllers\Controller;
+use TriggerEngage\Server\Models\Message;
 
 class UnsubscribeController extends Controller
 {
     public function show(Request $request, Message $message): View
     {
-        return view('unsubscribe', compact('message'));
+        return view('trigger-engage::unsubscribe', compact('message'));
     }
 
     public function destroy(Request $request, Message $message): RedirectResponse

@@ -1,18 +1,19 @@
 <?php
 
-namespace App\Jobs;
+namespace TriggerEngage\Server\Jobs;
 
-use App\Engine\EventWaitManager;
-use App\Engine\GoalManager;
-use App\Engine\Graph;
-use App\Models\Automation;
-use App\Models\AutomationRun;
-use App\Models\EventOccurrence;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
+use TriggerEngage\Server\Engine\EventWaitManager;
+use TriggerEngage\Server\Engine\GoalManager;
+use TriggerEngage\Server\Engine\Graph;
+use TriggerEngage\Server\Engine\SegmentManager;
+use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\EventOccurrence;
 
 /**
  * Fan an event occurrence out to every active automation it triggers,
@@ -35,12 +36,18 @@ class ProcessEventOccurrence implements ShouldQueue
     {
         $eventWaits = app(EventWaitManager::class);
         $goals = app(GoalManager::class);
+        $segments = app(SegmentManager::class);
         $occurrence = EventOccurrence::query()->with('person')->find($this->occurrenceId);
 
         // Automations message a person; an anonymous occurrence is data-only.
         if (! $occurrence || ! $occurrence->person) {
             return;
         }
+
+        $segments->matchOccurrence($occurrence);
+        // The new event may also change this person's eligibility for rule-based
+        // (behavioural) audiences — re-evaluate them for that person only.
+        $segments->syncPersonRuleSegments($occurrence->person);
 
         // A goal stops an existing run before the same occurrence is offered
         // to node-level waits or used to start a new automation run.

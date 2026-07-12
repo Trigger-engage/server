@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,12 +9,9 @@ class Template extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'settings' => 'array',
-        ];
-    }
+    protected $casts = [
+        'settings' => 'array',
+    ];
 
     public function workspace(): BelongsTo
     {

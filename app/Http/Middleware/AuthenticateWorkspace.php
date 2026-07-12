@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Http\Middleware;
+namespace TriggerEngage\Server\Http\Middleware;
 
-use App\Models\ApiKey;
-use App\Models\Workspace;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use TriggerEngage\Server\Models\ApiKey;
+use TriggerEngage\Server\Models\Workspace;
 
 /**
  * Credentials are the COMBINATION of workspace id and API key, sent as HTTP

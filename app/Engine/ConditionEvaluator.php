@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;

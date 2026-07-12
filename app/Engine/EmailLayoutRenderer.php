@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
-use App\Models\Template;
 use Illuminate\Support\Arr;
 use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
+use TriggerEngage\Server\Models\Template;
 
 class EmailLayoutRenderer
 {
@@ -32,7 +32,7 @@ class EmailLayoutRenderer
             return $this->plain($body, $unsubscribeUrl);
         }
 
-        $html = view('emails.layouts.mytherapist', [
+        $html = view('trigger-engage::emails.layouts.mytherapist', [
             'body' => $body,
             'preheader' => $preheader,
             'unsubscribeUrl' => $unsubscribeUrl,

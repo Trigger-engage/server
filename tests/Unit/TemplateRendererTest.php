@@ -2,8 +2,8 @@
 
 namespace Tests\Unit;
 
-use App\Engine\TemplateRenderer;
 use PHPUnit\Framework\TestCase;
+use TriggerEngage\Server\Engine\TemplateRenderer;
 
 class TemplateRendererTest extends TestCase
 {

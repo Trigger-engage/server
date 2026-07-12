@@ -1,20 +1,18 @@
 <?php
 
-use App\Http\Controllers\Api\V1\BatchController;
-use App\Http\Controllers\Api\V1\DeliveryWebhookController;
-use App\Http\Controllers\Api\V1\EventController;
-use App\Http\Controllers\Api\V1\PersonController;
-use App\Http\Middleware\AuthenticateWorkspace;
 use Illuminate\Support\Facades\Route;
+use TriggerEngage\Server\Http\Controllers\Api\V1\BatchController;
+use TriggerEngage\Server\Http\Controllers\Api\V1\EventController;
+use TriggerEngage\Server\Http\Controllers\Api\V1\PersonController;
+use TriggerEngage\Server\Http\Controllers\Api\V1\SegmentMembershipController;
 
-Route::prefix('v1')->middleware([AuthenticateWorkspace::class, 'throttle:600,1'])->group(function () {
-    Route::post('/events', [EventController::class, 'store']);
-    Route::put('/people/{externalId}', [PersonController::class, 'update']);
-    Route::delete('/people/{externalId}', [PersonController::class, 'destroy']);
-    Route::post('/batch', [BatchController::class, 'store']);
-});
-
-Route::prefix('v1/webhooks')->middleware('throttle:120,1')->group(function () {
-    Route::post('/termii/{channel}', [DeliveryWebhookController::class, 'termii']);
-    Route::post('/onesignal/{channel}', [DeliveryWebhookController::class, 'onesignal']);
-});
+Route::post('/events', [EventController::class, 'store']);
+Route::get('/people', [PersonController::class, 'index']);
+Route::get('/people/{externalId}', [PersonController::class, 'show']);
+Route::put('/people/{externalId}', [PersonController::class, 'update']);
+Route::patch('/people/{externalId}/properties', [PersonController::class, 'update']);
+Route::delete('/people/{externalId}/properties/{property}', [PersonController::class, 'destroyProperty']);
+Route::delete('/people/{externalId}', [PersonController::class, 'destroy']);
+Route::put('/segments/{segment}/people/{externalId}', [SegmentMembershipController::class, 'store']);
+Route::delete('/segments/{segment}/people/{externalId}', [SegmentMembershipController::class, 'destroy']);
+Route::post('/batch', [BatchController::class, 'store']);

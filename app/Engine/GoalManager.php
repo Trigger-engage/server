@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
-use App\Models\AutomationRun;
-use App\Models\EventOccurrence;
-use App\Models\RunEventWait;
-use App\Models\RunGoalSubscription;
-use App\Models\RunStep;
 use Illuminate\Support\Facades\DB;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\EventOccurrence;
+use TriggerEngage\Server\Models\RunEventWait;
+use TriggerEngage\Server\Models\RunGoalSubscription;
+use TriggerEngage\Server\Models\RunStep;
 
 class GoalManager
 {

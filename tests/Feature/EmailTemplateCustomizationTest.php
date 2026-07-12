@@ -2,16 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Mail\TemplatedMail;
-use App\Models\AutomationRun;
-use App\Models\Message;
-use App\Models\Person;
-use App\Models\Template;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Mail\TemplatedMail;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
+use TriggerEngage\Server\Models\Template;
 
 class EmailTemplateCustomizationTest extends TestCase
 {

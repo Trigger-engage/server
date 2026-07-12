@@ -2,12 +2,12 @@
 
 namespace Tests\Concerns;
 
-use App\Models\ApiKey;
-use App\Models\Automation;
-use App\Models\Channel;
-use App\Models\Event;
-use App\Models\Template;
-use App\Models\Workspace;
+use TriggerEngage\Server\Models\ApiKey;
+use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\Event;
+use TriggerEngage\Server\Models\Template;
+use TriggerEngage\Server\Models\Workspace;
 
 trait BuildsWorkspaces
 {

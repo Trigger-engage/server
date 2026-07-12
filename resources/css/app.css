@@ -13,6 +13,31 @@ body {
     min-width: 320px;
 }
 
+.te-wysiwyg-content {
+    min-height: 360px;
+    padding: 32px;
+    color: #4a4d6e;
+    font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    outline: none;
+}
+
+.te-wysiwyg-content > *:first-child { margin-top: 0; }
+.te-wysiwyg-content > *:last-child { margin-bottom: 0; }
+.te-wysiwyg-content p { margin: 0 0 16px; }
+.te-wysiwyg-content h1 { margin: 0 0 18px; color: #1b1d3e; font-size: 30px; font-weight: 700; line-height: 1.2; }
+.te-wysiwyg-content h2 { margin: 24px 0 14px; color: #1b1d3e; font-size: 22px; font-weight: 700; line-height: 1.3; }
+.te-wysiwyg-content ul, .te-wysiwyg-content ol { margin: 0 0 18px; padding-left: 28px; }
+.te-wysiwyg-content ul { list-style: disc; }
+.te-wysiwyg-content ol { list-style: decimal; }
+.te-wysiwyg-content blockquote { margin: 20px 0; border-left: 4px solid #fed325; padding: 8px 0 8px 18px; color: #696c88; }
+.te-wysiwyg-content hr { margin: 28px 0; border: 0; border-top: 1px solid #efeaf2; }
+.te-wysiwyg-content a { color: #4055b5; text-decoration: underline; }
+.te-wysiwyg-content a.te-button { display: inline-block; border-radius: 8px; background: #fed325; padding: 12px 20px; color: #1b1d3e; font-weight: 700; text-decoration: none; }
+.te-wysiwyg-content .ProseMirror-selectednode { outline: 2px solid #34d399; }
+.te-wysiwyg-content p.is-editor-empty:first-child::before { float: left; height: 0; color: #a1a1aa; content: 'Write your email…'; pointer-events: none; }
+
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';

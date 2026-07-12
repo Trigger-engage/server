@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\ApiKey;
-use App\Models\Event;
-use App\Models\Workspace;
+use TriggerEngage\Server\Models\ApiKey;
+use TriggerEngage\Server\Models\Event;
+use TriggerEngage\Server\Models\Workspace;
 use Illuminate\Database\Seeder;
 
 class DemoSeeder extends Seeder

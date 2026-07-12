@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,10 +10,7 @@ class ApiKey extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return ['last_used_at' => 'datetime'];
-    }
+    protected $casts = ['last_used_at' => 'datetime'];
 
     public function workspace(): BelongsTo
     {

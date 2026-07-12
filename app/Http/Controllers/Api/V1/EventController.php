@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1;
+namespace TriggerEngage\Server\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
-use App\Services\Ingest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use TriggerEngage\Server\Http\Controllers\Controller;
+use TriggerEngage\Server\Services\Ingest;
 
 class EventController extends Controller
 {
@@ -13,10 +13,12 @@ class EventController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'person_id' => ['required', 'string', 'max:150'],
+            'person_id' => ['required_without:anonymous_id', 'nullable', 'string', 'max:150'],
+            'anonymous_id' => ['required_without:person_id', 'nullable', 'string', 'max:150'],
             'email' => ['nullable', 'email'],
             'phone' => ['nullable', 'string', 'max:50'],
             'attributes' => ['nullable', 'array'],
+            'properties' => ['nullable', 'array', 'max:200'],
             'data' => ['nullable', 'array'],
             'idempotency_key' => ['nullable', 'string', 'max:150'],
             'occurred_at' => ['nullable', 'date'],

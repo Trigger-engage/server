@@ -1,14 +1,34 @@
 # trigger-engage server
 
-Open-source, self-hostable messaging-automation platform. Define events and
-automations; fire events from your app via an SDK; the engine walks the
-automation graph and sends email, Termii SMS, and OneSignal push.
+Open-source messaging automation for Laravel. Run it as a standalone,
+self-hosted service or install the complete dashboard and engine into an
+existing Laravel application with Composer.
 
-See [SPEC.md](SPEC.md) for the architecture and [PRODUCTION.md](PRODUCTION.md)
-for deployment and cutover gates. The UI includes a draggable React Flow view,
-provider configuration, metrics, immutable publishing and per-run timelines.
+The UI includes a draggable React Flow journey builder, behavioural segments,
+A/B tests, provider configuration, a time-series analytics dashboard, immutable
+publishing, and per-run timelines.
 
-## Quick start
+**📚 Full documentation is in [docs/](docs/README.md)** — concepts, guides
+(journeys, segments, A/B testing, anonymous identity, analytics), the
+[HTTP API reference](docs/API.md), and the [architecture spec](SPEC.md).
+For deployment see [Deploying the backend](#deploying-the-backend) and
+[PRODUCTION.md](PRODUCTION.md).
+
+## Choose an installation
+
+### Embed it in an existing Laravel application
+
+```bash
+composer require trigger-engage/server
+php artisan engage:install --name="My Product" --timezone=Africa/Lagos
+```
+
+Open `/trigger-engage`. The package uses the host database, authentication,
+queue, and scheduler. SDK facade calls are dispatched in-process, so there is
+no separate Trigger Engage host or API credential to configure. The dashboard
+is restricted to authenticated host users by default.
+
+### Run it as a self-hosted service
 
 ```bash
 composer install
@@ -21,8 +41,16 @@ php artisan queue:work       # if QUEUE_CONNECTION != sync
 
 Open `http://localhost:8000/app`. The browser uses the same HTTP Basic
 credential pair as the API: workspace id as username and API key as password.
-The UI can create event definitions, email templates, email channels, and
-versioned automations with delay, event-wait, and timeout paths.
+The management UI uses a responsive SaaS-style sidebar with dedicated Overview,
+Automations, Events, Templates, Channels, and Runs pages. It can create event
+definitions, message templates, delivery channels, and versioned automations
+with delay, event-wait, goal, and timeout paths.
+
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for the full Composer-package
+and self-hosted installation guide, including authorization, upgrades, worker
+requirements, and guidance for choosing a deployment mode.
+Maintainers can use [docs/PUBLISHING.md](docs/PUBLISHING.md) for the ordered
+SDK/server tagging, archive, and clean-install release checks.
 
 Create a real workspace (prints the SDK credential pair once):
 
@@ -41,10 +69,43 @@ hashed (sha256) and shown once at creation.
 
 | Route | Purpose |
 |---|---|
-| `POST /api/v1/events` | Track an event and optionally update its person: `{name, person_id, email?, phone?, attributes?, data?, idempotency_key?, occurred_at?}` |
-| `PUT /api/v1/people/{external_id}` | Upsert a person: `{email?, phone?, attributes?}` |
+| `POST /api/v1/events` | Track an event and optionally update its person: `{name, person_id?, anonymous_id?, email?, phone?, attributes?, data?, idempotency_key?, occurred_at?}` — one of `person_id` / `anonymous_id` is required |
+| `GET /api/v1/people` | Paginated people; optional `search` and `per_page` query parameters |
+| `GET /api/v1/people/{external_id}` | Read a person and their typed custom properties |
+| `PUT /api/v1/people/{external_id}` | Upsert a person: `{email?, phone?, properties?, anonymous_id?}`; `attributes` remains supported. Passing `anonymous_id` merges that [anonymous profile](docs/guides/anonymous-identity.md) in |
+| `PATCH /api/v1/people/{external_id}/properties` | Merge typed properties into a person |
+| `DELETE /api/v1/people/{external_id}/properties/{key}` | Remove one property without deleting the person |
 | `DELETE /api/v1/people/{external_id}` | Erase a person (GDPR/NDPR) |
 | `POST /api/v1/batch` | Up to 500 mixed identify/event items as a top-level array; `{items: [...]}` is also accepted |
+| `PUT /api/v1/segments/{segment_id}/people/{external_id}` | Add an identified person to a manual segment |
+| `DELETE /api/v1/segments/{segment_id}/people/{external_id}` | Remove a person from a manual segment |
+
+## Segments and broadcasts
+
+Segments are reusable audiences, in three flavours ([full guide](docs/guides/segments.md)):
+
+- **Manual** — membership changed explicitly through the API or SDK.
+- **Event-driven** — bound to an event; when that event is accepted, its person is added
+  idempotently.
+- **Rule-based** — a boolean rule over attributes and behaviour (e.g. *booked but not
+  attended in 30 days*) that **recomputes itself** as data changes and time passes.
+
+Event-driven and rule-based membership is computed by the engine and cannot be changed
+through the manual-membership API.
+
+Broadcasts send one template to a segment over email, SMS, or push. Sending snapshots
+the current member list into recipient records before queueing delivery, so later
+membership changes do not change an in-progress campaign. Suppressions and missing
+destinations are skipped, and every recipient retains a delivery status and message
+ledger entry. A broadcast draft can only be sent once.
+
+## Person properties
+
+Every person has Customer.io-style custom properties stored as typed JSON: strings,
+numbers, booleans, nulls, arrays, and nested objects. Existing `attributes` payloads
+remain supported and are treated as properties. Properties merge on SDK/API calls
+and can also be managed in the People UI. Templates can read them directly as
+`{{ person.appointments }}` or through `{{ person.properties.appointments }}`.
 
 ## Automation graphs
 
@@ -79,7 +140,10 @@ Plus Jakarta Sans typography, app badges, social links, navy footer, crisis
 copy, and signed unsubscribe link. Subject, preheader, Liquid/HTML content,
 sender override, logo, identity, colors, store links, social links, and footer
 copy are customizable per template. A plain-HTML layout remains available for
-special-purpose messages. Final email CSS is inlined for broad client support.
+special-purpose messages. The body composer includes a full visual editor with
+headings, formatting, lists, alignment, links, buttons, colors, undo/redo and
+one-click Liquid variables, plus a lossless HTML/Liquid source mode. Final email
+CSS is inlined for broad client support.
 
 `wait_for_event` nodes persist until a later event for the same person arrives
 or their deadline passes. Their two edges use `branch: "matched"` and
@@ -93,6 +157,20 @@ when it starts; a matching occurrence for that person completes the run from
 any node and cancels pending delays, event waits, and send retries. Optional
 correlation prevents one entity's goal from stopping another entity's journey.
 The triggering occurrence and payload are retained in the run timeline.
+
+`split` nodes run an **A/B test**: each person is routed to one of 2–4 weighted
+message variants (deterministically, so a person always gets the same variant),
+then all paths rejoin the journey. The editor shows live per-variant entered,
+converted, and conversion-rate results. See [A/B testing](docs/guides/ab-testing.md).
+
+## Analytics
+
+The **Analytics** page (`/app/analytics`) is a time-series dashboard over the
+workspace: message volume (sent vs delivered), a delivery funnel (sent → delivered
+→ opened → clicked), runs and events per day, a per-channel breakdown, and
+period-over-period deltas, across a 7/14/30/90-day window. Delivered/opened/clicked
+depend on provider [delivery webhooks](PRODUCTION.md#provider-configuration). See the
+[analytics guide](docs/guides/analytics.md).
 
 ## Engine guarantees
 

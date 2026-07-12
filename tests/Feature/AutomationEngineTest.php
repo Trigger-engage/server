@@ -2,20 +2,20 @@
 
 namespace Tests\Feature;
 
-use App\Engine\RunEngine;
-use App\Jobs\AdvanceAutomationRun;
-use App\Jobs\ProcessEventOccurrence;
-use App\Mail\TemplatedMail;
-use App\Models\Automation;
-use App\Models\AutomationRun;
-use App\Models\EventOccurrence;
-use App\Models\Message;
-use App\Models\Person;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Engine\RunEngine;
+use TriggerEngage\Server\Jobs\AdvanceAutomationRun;
+use TriggerEngage\Server\Jobs\ProcessEventOccurrence;
+use TriggerEngage\Server\Mail\TemplatedMail;
+use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\EventOccurrence;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
 
 class AutomationEngineTest extends TestCase
 {

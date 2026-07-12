@@ -1,15 +1,16 @@
 <?php
 
-namespace App\Console\Commands;
+namespace TriggerEngage\Server\Console\Commands;
 
-use App\Engine\EventWaitManager;
-use App\Jobs\AdvanceAutomationRun;
-use App\Models\AutomationRun;
-use App\Models\Message;
-use App\Models\RunEventWait;
-use App\Models\RunGoalSubscription;
-use App\Models\RunStep;
 use Illuminate\Console\Command;
+use TriggerEngage\Server\Engine\EventWaitManager;
+use TriggerEngage\Server\Engine\SegmentManager;
+use TriggerEngage\Server\Jobs\AdvanceAutomationRun;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\RunEventWait;
+use TriggerEngage\Server\Models\RunGoalSubscription;
+use TriggerEngage\Server\Models\RunStep;
 
 class EngageTick extends Command
 {
@@ -17,10 +18,14 @@ class EngageTick extends Command
 
     protected $description = 'Wake automation runs whose delay has elapsed';
 
-    public function handle(EventWaitManager $eventWaits): int
+    public function handle(EventWaitManager $eventWaits, SegmentManager $segments): int
     {
         $this->recoverStaleSendReservations();
         $this->cancelFinishedGoalSubscriptions();
+
+        // Behavioural audiences whose conditions are time-bound (e.g. "inactive
+        // for 14 days") drift purely as time passes, so sweep stale ones here.
+        $recomputedSegments = $segments->recomputeStale();
 
         $due = AutomationRun::query()
             ->where('status', AutomationRun::STATUS_WAITING)
@@ -40,7 +45,7 @@ class EngageTick extends Command
             $eventWaits->resolveTimeout((int) $waitId);
         }
 
-        $this->info("Woke {$due->count()} delayed run(s) and resolved {$dueEventWaits->count()} event wait(s).");
+        $this->info("Woke {$due->count()} delayed run(s), resolved {$dueEventWaits->count()} event wait(s), recomputed {$recomputedSegments} rule segment(s).");
 
         return self::SUCCESS;
     }

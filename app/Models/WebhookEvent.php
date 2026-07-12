@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,10 +9,7 @@ class WebhookEvent extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return ['payload' => 'array', 'processed_at' => 'datetime'];
-    }
+    protected $casts = ['payload' => 'array', 'processed_at' => 'datetime'];
 
     public function channel(): BelongsTo
     {

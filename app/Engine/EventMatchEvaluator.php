@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
-use App\Models\AutomationRun;
-use App\Models\EventOccurrence;
 use Illuminate\Support\Arr;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\EventOccurrence;
 
 class EventMatchEvaluator
 {

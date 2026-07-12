@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,13 +10,10 @@ class Event extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'payload_schema' => 'array',
-            'first_seen_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'payload_schema' => 'array',
+        'first_seen_at' => 'datetime',
+    ];
 
     public function workspace(): BelongsTo
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Providers;
+namespace TriggerEngage\Server\Providers;
 
 use Illuminate\Support\Facades\Gate;
 use Laravel\Horizon\Horizon;

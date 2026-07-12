@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "443f608678c0b67f3ed6a6ca6598855b",
+    "content-hash": "8a6fc6d93c704b34fb5fed080817fdd6",
     "packages": [
         {
             "name": "brick/math",
@@ -6259,6 +6259,67 @@
             "time": "2025-12-02T11:56:42+00:00"
         },
         {
+            "name": "trigger-engage/laravel",
+            "version": "0.2.0",
+            "dist": {
+                "type": "path",
+                "url": "../laravel-sdk",
+                "reference": "f512f92b69a7767a214cd14b681d9705a9c1d27a"
+            },
+            "require": {
+                "illuminate/bus": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/queue": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+                "phpunit/phpunit": "^10.5|^11.0|^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "TriggerEngage\\Laravel\\TriggerEngageServiceProvider"
+                    ],
+                    "aliases": {
+                        "TriggerEngage": "TriggerEngage\\Laravel\\Facades\\TriggerEngage"
+                    }
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "TriggerEngage\\Laravel\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "TriggerEngage\\Laravel\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Laravel SDK for trigger-engage — event-driven messaging automations (open-source Customer.io alternative).",
+            "keywords": [
+                "automation",
+                "customer-io",
+                "laravel",
+                "messaging",
+                "trigger-engage"
+            ],
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
             "name": "vlucas/phpdotenv",
             "version": "v5.6.4",
             "source": {
@@ -8708,7 +8769,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.3"
+        "php": "^8.2"
     },
     "platform-dev": {},
     "plugin-api-version": "2.9.0"

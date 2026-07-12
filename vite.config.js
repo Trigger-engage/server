@@ -4,10 +4,12 @@ import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+    base: mode === 'package' ? '/vendor/trigger-engage/build/' : undefined,
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.jsx'],
+            publicDirectory: mode === 'package' ? 'dist' : 'public',
             refresh: true,
             fonts: [
                 bunny('Instrument Sans', {
@@ -23,4 +25,4 @@ export default defineConfig({
             ignored: ['**/storage/framework/views/**'],
         },
     },
-});
+}));

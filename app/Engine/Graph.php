@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Engine;
+namespace TriggerEngage\Server\Engine;
 
 /**
  * Immutable view over an automation version's graph JSON:

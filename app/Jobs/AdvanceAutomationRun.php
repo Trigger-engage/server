@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Jobs;
+namespace TriggerEngage\Server\Jobs;
 
-use App\Engine\RunEngine;
-use App\Models\AutomationRun;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use TriggerEngage\Server\Engine\RunEngine;
+use TriggerEngage\Server\Models\AutomationRun;
 
 class AdvanceAutomationRun implements ShouldQueue
 {

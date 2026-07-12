@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Person extends Model
@@ -12,13 +13,10 @@ class Person extends Model
 
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'attributes' => 'array',
-            'unsubscribed_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'attributes' => 'array',
+        'unsubscribed_at' => 'datetime',
+    ];
 
     public function workspace(): BelongsTo
     {
@@ -28,6 +26,31 @@ class Person extends Model
     public function suppressions(): HasMany
     {
         return $this->hasMany(Suppression::class);
+    }
+
+    public function segments(): BelongsToMany
+    {
+        return $this->belongsToMany(Segment::class, 'segment_person')->withPivot(['source', 'event_occurrence_id', 'added_at']);
+    }
+
+    public function occurrences(): HasMany
+    {
+        return $this->hasMany(EventOccurrence::class);
+    }
+
+    public function automationRuns(): HasMany
+    {
+        return $this->hasMany(AutomationRun::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class);
+    }
+
+    public function properties(): array
+    {
+        return $this->getAttribute('attributes') ?? [];
     }
 
     public function isSuppressed(string $channel): bool
@@ -59,6 +82,7 @@ class Person extends Model
             'email' => $this->email,
             'phone' => $this->phone,
             'attributes' => $attributes,
+            'properties' => $attributes,
         ]);
     }
 }

@@ -2,17 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessEventOccurrence;
-use App\Models\AutomationRun;
-use App\Models\Event;
-use App\Models\EventOccurrence;
-use App\Models\Message;
-use App\Models\Person;
-use App\Models\RunEventWait;
-use App\Models\RunGoalSubscription;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Jobs\ProcessEventOccurrence;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Event;
+use TriggerEngage\Server\Models\EventOccurrence;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
+use TriggerEngage\Server\Models\RunEventWait;
+use TriggerEngage\Server\Models\RunGoalSubscription;
 
 class GoalEngineTest extends TestCase
 {

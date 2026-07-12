@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -45,5 +45,20 @@ class Workspace extends Model
     public function channels(): HasMany
     {
         return $this->hasMany(Channel::class);
+    }
+
+    public function segments(): HasMany
+    {
+        return $this->hasMany(Segment::class);
+    }
+
+    public function broadcasts(): HasMany
+    {
+        return $this->hasMany(Broadcast::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class);
     }
 }

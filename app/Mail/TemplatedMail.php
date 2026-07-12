@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Mail;
+namespace TriggerEngage\Server\Mail;
 
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;

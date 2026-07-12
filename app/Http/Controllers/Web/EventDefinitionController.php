@@ -1,13 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Web;
+namespace TriggerEngage\Server\Http\Controllers\Web;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+use TriggerEngage\Server\Http\Controllers\Controller;
 
 class EventDefinitionController extends Controller
 {
+    public function index(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace');
+
+        return Inertia::render('Events/Index', [
+            'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
+            'events' => $workspace->events()
+                ->withCount('occurrences')
+                ->orderBy('name')
+                ->get(['id', 'name', 'payload_schema', 'first_seen_at', 'updated_at']),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([

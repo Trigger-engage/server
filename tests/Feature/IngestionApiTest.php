@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\EventOccurrence;
-use App\Models\Person;
-use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Models\EventOccurrence;
+use TriggerEngage\Server\Models\Person;
+use TriggerEngage\Server\Models\Workspace;
 
 class IngestionApiTest extends TestCase
 {

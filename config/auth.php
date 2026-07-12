@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use TriggerEngage\Server\Models\User;
 
 return [
 

@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Models\Automation;
-use App\Models\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\Event;
 
 class ManagementUiTest extends TestCase
 {
@@ -31,9 +31,33 @@ class ManagementUiTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
                 ->where('workspace.public_id', $workspace->public_id)
-                ->has('events', 1)
-                ->where('events.0.name', 'visible_event')
+                ->where('counts.events', 1)
             );
+    }
+
+    public function test_management_sections_are_workspace_scoped_and_use_dedicated_pages(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        [$otherWorkspace] = $this->makeWorkspace();
+        Event::create(['workspace_id' => $workspace->id, 'name' => 'visible_event']);
+        Event::create(['workspace_id' => $otherWorkspace->id, 'name' => 'hidden_event']);
+        $headers = $this->authHeaders($workspace, $key);
+
+        $this->get('/app/events', $headers)->assertInertia(fn (Assert $page) => $page
+            ->component('Events/Index')
+            ->has('events', 1)
+            ->where('events.0.name', 'visible_event'));
+        $this->get('/app/automations', $headers)->assertInertia(fn (Assert $page) => $page->component('Automations/Index'));
+        $this->get('/app/templates', $headers)->assertInertia(fn (Assert $page) => $page->component('Templates/Index'));
+        $this->get('/app/channels', $headers)->assertInertia(fn (Assert $page) => $page->component('Channels/Index'));
+        $this->get('/app/runs', $headers)->assertInertia(fn (Assert $page) => $page->component('Runs/Index'));
+    }
+
+    public function test_management_sections_require_workspace_credentials(): void
+    {
+        foreach (['events', 'automations', 'templates', 'channels', 'runs'] as $section) {
+            $this->get('/app/'.$section)->assertUnauthorized();
+        }
     }
 
     public function test_workspace_can_build_and_publish_a_linear_automation(): void

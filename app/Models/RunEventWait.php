@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,15 +17,12 @@ class RunEventWait extends Model
 
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
-            'match_rules' => 'array',
-            'expires_at' => 'datetime',
-            'matched_at' => 'datetime',
-            'timed_out_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'match_rules' => 'array',
+        'expires_at' => 'datetime',
+        'matched_at' => 'datetime',
+        'timed_out_at' => 'datetime',
+    ];
 
     public function run(): BelongsTo
     {

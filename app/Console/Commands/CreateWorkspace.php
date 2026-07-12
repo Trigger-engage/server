@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Console\Commands;
+namespace TriggerEngage\Server\Console\Commands;
 
-use App\Models\ApiKey;
-use App\Models\Workspace;
 use Illuminate\Console\Command;
+use TriggerEngage\Server\Models\ApiKey;
+use TriggerEngage\Server\Models\Workspace;
 
 class CreateWorkspace extends Command
 {

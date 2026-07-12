@@ -1,35 +1,45 @@
 <?php
 
-use App\Http\Controllers\Web\AutomationController;
-use App\Http\Controllers\Web\ChannelController;
-use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\EventDefinitionController;
-use App\Http\Controllers\Web\RunController;
-use App\Http\Controllers\Web\TemplateController;
-use App\Http\Controllers\Web\UnsubscribeController;
-use App\Http\Middleware\AuthenticateWorkspace;
 use Illuminate\Support\Facades\Route;
+use TriggerEngage\Server\Http\Controllers\Web\AnalyticsController;
+use TriggerEngage\Server\Http\Controllers\Web\AutomationController;
+use TriggerEngage\Server\Http\Controllers\Web\BroadcastController;
+use TriggerEngage\Server\Http\Controllers\Web\ChannelController;
+use TriggerEngage\Server\Http\Controllers\Web\DashboardController;
+use TriggerEngage\Server\Http\Controllers\Web\EventDefinitionController;
+use TriggerEngage\Server\Http\Controllers\Web\PersonController;
+use TriggerEngage\Server\Http\Controllers\Web\RunController;
+use TriggerEngage\Server\Http\Controllers\Web\SegmentController;
+use TriggerEngage\Server\Http\Controllers\Web\TemplateController;
 
-Route::get('/', function () {
-    return redirect('/app');
-});
-
-Route::get('/unsubscribe/{message}', [UnsubscribeController::class, 'show'])
-    ->middleware('signed')->name('unsubscribe.show');
-Route::post('/unsubscribe/{message}', [UnsubscribeController::class, 'destroy'])
-    ->middleware('signed')->name('unsubscribe.destroy');
-
-Route::prefix('app')->middleware(AuthenticateWorkspace::class)->name('engage.')->group(function () {
-    Route::get('/', DashboardController::class)->name('dashboard');
-    Route::post('/events', [EventDefinitionController::class, 'store'])->name('events.store');
-    Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('templates.preview');
-    Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
-    Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
-    Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
-    Route::post('/channels', [ChannelController::class, 'store'])->name('channels.store');
-    Route::post('/automations', [AutomationController::class, 'store'])->name('automations.store');
-    Route::get('/automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');
-    Route::put('/automations/{automation}/publish', [AutomationController::class, 'publish'])->name('automations.publish');
-    Route::post('/automations/{automation}/pause', [AutomationController::class, 'pause'])->name('automations.pause');
-    Route::get('/runs/{run}', [RunController::class, 'show'])->name('runs.show');
-});
+Route::get('/', DashboardController::class)->name('dashboard');
+Route::get('/analytics', AnalyticsController::class)->name('analytics.index');
+Route::get('/events', [EventDefinitionController::class, 'index'])->name('events.index');
+Route::post('/events', [EventDefinitionController::class, 'store'])->name('events.store');
+Route::get('/people', [PersonController::class, 'index'])->name('people.index');
+Route::post('/people', [PersonController::class, 'store'])->name('people.store');
+Route::get('/people/{person}', [PersonController::class, 'show'])->name('people.show');
+Route::put('/people/{person}', [PersonController::class, 'update'])->name('people.update');
+Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('templates.preview');
+Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
+Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
+Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
+Route::post('/channels/test', [ChannelController::class, 'test'])->name('channels.test');
+Route::post('/channels', [ChannelController::class, 'store'])->name('channels.store');
+Route::get('/automations', [AutomationController::class, 'index'])->name('automations.index');
+Route::post('/automations', [AutomationController::class, 'store'])->name('automations.store');
+Route::get('/automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');
+Route::put('/automations/{automation}/publish', [AutomationController::class, 'publish'])->name('automations.publish');
+Route::post('/automations/{automation}/pause', [AutomationController::class, 'pause'])->name('automations.pause');
+Route::get('/runs', [RunController::class, 'index'])->name('runs.index');
+Route::get('/runs/{run}', [RunController::class, 'show'])->name('runs.show');
+Route::get('/segments', [SegmentController::class, 'index'])->name('segments.index');
+Route::post('/segments', [SegmentController::class, 'store'])->name('segments.store');
+Route::put('/segments/{segment}', [SegmentController::class, 'update'])->name('segments.update');
+Route::get('/broadcasts', [BroadcastController::class, 'index'])->name('broadcasts.index');
+Route::post('/broadcasts', [BroadcastController::class, 'store'])->name('broadcasts.store');
+Route::get('/broadcasts/{broadcast}/edit', [BroadcastController::class, 'edit'])->name('broadcasts.edit');
+Route::put('/broadcasts/{broadcast}', [BroadcastController::class, 'update'])->name('broadcasts.update');
+Route::post('/broadcasts/{broadcast}/send', [BroadcastController::class, 'send'])->name('broadcasts.send');

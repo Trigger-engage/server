@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Jobs;
+namespace TriggerEngage\Server\Jobs;
 
-use App\Models\Message;
-use App\Models\WebhookEvent;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\WebhookEvent;
 
 class ProcessDeliveryWebhook implements ShouldQueue
 {

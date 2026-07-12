@@ -1,21 +1,39 @@
 <?php
 
-namespace App\Http\Controllers\Web;
+namespace TriggerEngage\Server\Http\Controllers\Web;
 
-use App\Http\Controllers\Controller;
-use App\Models\Automation;
-use App\Models\Channel;
-use App\Models\Event;
-use App\Models\Template;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use TriggerEngage\Server\Http\Controllers\Controller;
+use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Channel;
+use TriggerEngage\Server\Models\Event;
+use TriggerEngage\Server\Models\RunGoalSubscription;
+use TriggerEngage\Server\Models\RunStep;
+use TriggerEngage\Server\Models\Template;
 
 class AutomationController extends Controller
 {
+    public function index(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace');
+
+        return Inertia::render('Automations/Index', [
+            'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
+            'events' => $workspace->events()->orderBy('name')->get(['id', 'name']),
+            'automations' => $workspace->automations()
+                ->with('triggerEvent:id,name')
+                ->withCount('runs')
+                ->latest()
+                ->get(['id', 'name', 'status', 'trigger_event_id', 'reentry_policy', 'active_version_id', 'updated_at']),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $workspace = $request->attributes->get('workspace');
@@ -53,6 +71,7 @@ class AutomationController extends Controller
                 'goal' => $this->editableGoal($automation),
                 'published_at' => $automation->activeVersion?->published_at,
             ],
+            'abTests' => $this->abTestResults($automation),
             'templates' => $workspace->templates()
                 ->orderBy('name')
                 ->get(['id', 'channel', 'name', 'subject']),
@@ -71,7 +90,15 @@ class AutomationController extends Controller
 
         $validated = $request->validate([
             'steps' => ['present', 'array', 'max:100'],
-            'steps.*.type' => ['required', Rule::in(['delay', 'wait_for_event', 'send_email', 'send_sms', 'send_push'])],
+            'steps.*.type' => ['required', Rule::in(['delay', 'wait_for_event', 'send_email', 'send_sms', 'send_push', 'split'])],
+            'steps.*.variants' => ['required_if:steps.*.type,split', 'array', 'min:2', 'max:4'],
+            'steps.*.variants.*.key' => ['required_with:steps.*.variants', 'string', 'max:20'],
+            'steps.*.variants.*.weight' => ['nullable', 'integer', 'between:1,100'],
+            'steps.*.variants.*.type' => ['required_with:steps.*.variants', Rule::in(['email', 'sms', 'push'])],
+            'steps.*.variants.*.template_id' => ['nullable', 'integer'],
+            'steps.*.variants.*.channel_id' => ['nullable', 'integer'],
+            'steps.*.variants.*.retry_attempts' => ['nullable', 'integer', 'between:1,10'],
+            'steps.*.variants.*.on_failure' => ['nullable', Rule::in(['continue', 'fail'])],
             'steps.*.days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'steps.*.hours' => ['nullable', 'integer', 'min:0', 'max:23'],
             'steps.*.minutes' => ['nullable', 'integer', 'min:0', 'max:59'],
@@ -127,12 +154,70 @@ class AutomationController extends Controller
         abort_unless($automation->workspace_id === $workspaceId, 404);
     }
 
+    /**
+     * Per-variant results for every A/B split in the published graph. Conversion
+     * counts goal completions when the automation has a goal, otherwise runs that
+     * finished the journey.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function abTestResults(Automation $automation): array
+    {
+        $graph = $automation->activeVersion?->graph ?? [];
+        $splits = collect($graph['nodes'] ?? [])->where('type', 'split');
+
+        if ($splits->isEmpty()) {
+            return [];
+        }
+
+        $goalBased = ! empty($graph['goals']);
+
+        return $splits->map(function (array $node) use ($automation, $goalBased): array {
+            $steps = RunStep::query()
+                ->where('node_id', $node['id'])
+                ->where('type', 'split')
+                ->whereHas('run', fn ($q) => $q->where('automation_id', $automation->id))
+                ->with('run:id,status')
+                ->get(['id', 'automation_run_id', 'node_id', 'output']);
+
+            $reached = $goalBased
+                ? RunGoalSubscription::query()
+                    ->where('status', RunGoalSubscription::STATUS_REACHED)
+                    ->whereIn('automation_run_id', $steps->pluck('automation_run_id'))
+                    ->pluck('automation_run_id')
+                    ->flip()
+                : collect();
+
+            $isConverted = fn (RunStep $step): bool => $goalBased
+                ? $reached->has($step->automation_run_id)
+                : $step->run?->status === AutomationRun::STATUS_COMPLETED;
+
+            $variants = collect($node['config']['variants'] ?? [])->map(function (array $variant) use ($steps, $isConverted): array {
+                $assigned = $steps->where('output.variant', $variant['key']);
+                $entered = $assigned->count();
+                $converted = $assigned->filter($isConverted)->count();
+
+                return [
+                    'key' => $variant['key'],
+                    'type' => $variant['type'] ?? 'email',
+                    'weight' => $variant['weight'] ?? 50,
+                    'entered' => $entered,
+                    'converted' => $converted,
+                    'rate' => $entered ? round($converted / $entered * 100, 1) : 0.0,
+                ];
+            })->values()->all();
+
+            return ['node_id' => $node['id'], 'goal_based' => $goalBased, 'variants' => $variants];
+        })->values()->all();
+    }
+
     /** @return array<int, array<string, mixed>> */
     protected function editableSteps(Automation $automation): array
     {
         return collect($automation->activeVersion?->graph['nodes'] ?? [])
             ->reject(fn (array $node) => in_array($node['type'], ['trigger', 'exit'], true))
             ->reject(fn (array $node) => (bool) ($node['config']['generated_for_wait'] ?? false))
+            ->reject(fn (array $node) => (bool) ($node['config']['generated_for_split'] ?? false))
             ->map(fn (array $node) => ['type' => $node['type'], ...($node['config'] ?? [])])
             ->values()
             ->all();
@@ -165,12 +250,17 @@ class AutomationController extends Controller
     {
         $nodes = [['id' => 'trigger', 'type' => 'trigger', 'config' => []]];
         $visibleNodes = [];
-        $generatedTimeoutNodes = [];
+        // visibleId => array of nodes generated for it (event-wait timeout sends,
+        // A/B variant send nodes). They execute but never appear as edit steps.
+        $generatedNodes = [];
 
         foreach ($steps as $index => $step) {
             $id = 'step_'.($index + 1);
 
-            if ($step['type'] === 'delay') {
+            if ($step['type'] === 'split') {
+                [$config, $variantNodes] = $this->splitConfig($workspaceId, $id, $step);
+                $generatedNodes[$id] = $variantNodes;
+            } elseif ($step['type'] === 'delay') {
                 $config = filled($step['until_time'] ?? null)
                     ? ['until_time' => $step['until_time']]
                     : [
@@ -235,7 +325,7 @@ class AutomationController extends Controller
                         'timeout_retry_attempts' => $timeoutConfig['retry_attempts'],
                         'timeout_on_failure' => $timeoutConfig['on_failure'],
                     ];
-                    $generatedTimeoutNodes[$id] = [
+                    $generatedNodes[$id][] = [
                         'id' => $id.'__timeout',
                         'type' => $config['timeout_action'],
                         'config' => [...$timeoutConfig, 'generated_for_wait' => $id],
@@ -251,8 +341,8 @@ class AutomationController extends Controller
         foreach ($visibleNodes as $node) {
             $nodes[] = $node;
 
-            if (isset($generatedTimeoutNodes[$node['id']])) {
-                $nodes[] = $generatedTimeoutNodes[$node['id']];
+            foreach ($generatedNodes[$node['id']] ?? [] as $generated) {
+                $nodes[] = $generated;
             }
         }
 
@@ -264,6 +354,17 @@ class AutomationController extends Controller
 
         foreach ($visibleNodes as $index => $node) {
             $nextId = $visibleNodes[$index + 1]['id'] ?? 'exit';
+
+            if ($node['type'] === 'split') {
+                // One branch per variant → its generated send node → converge.
+                foreach ($node['config']['variants'] as $variant) {
+                    $variantNodeId = $node['id'].'__v_'.$variant['key'];
+                    $edges[] = ['from' => $node['id'], 'to' => $variantNodeId, 'branch' => $variant['key']];
+                    $edges[] = ['from' => $variantNodeId, 'to' => $nextId];
+                }
+
+                continue;
+            }
 
             if ($node['type'] !== 'wait_for_event') {
                 $edges[] = ['from' => $node['id'], 'to' => $nextId];
@@ -332,6 +433,52 @@ class AutomationController extends Controller
                 ]]
                 : [],
         ]];
+    }
+
+    /**
+     * Build an A/B split node plus one generated send node per variant. The full
+     * variant detail lives on the split node's config so the editor can round-trip
+     * it; the generated send nodes are what the engine actually executes.
+     *
+     * @return array{0: array{variants: array<int, array<string, mixed>>}, 1: array<int, array>}
+     */
+    protected function splitConfig(int $workspaceId, string $stepId, array $step): array
+    {
+        $variants = array_values($step['variants'] ?? []);
+
+        if (count($variants) < 2) {
+            throw ValidationException::withMessages(['steps' => 'An A/B test needs at least two variants.']);
+        }
+
+        $seenKeys = [];
+        $normalized = [];
+        $nodes = [];
+
+        foreach ($variants as $position => $variant) {
+            $key = (string) ($variant['key'] ?? chr(65 + $position));
+
+            if (in_array($key, $seenKeys, true)) {
+                throw ValidationException::withMessages(['steps' => 'A/B test variant keys must be unique.']);
+            }
+            $seenKeys[] = $key;
+
+            $channelType = $variant['type'] ?? 'email';
+            $send = $this->sendConfig($workspaceId, 'send_'.$channelType, $variant);
+
+            $normalized[] = [
+                'key' => $key,
+                'weight' => max(1, (int) ($variant['weight'] ?? 50)),
+                'type' => $channelType,
+                ...$send,
+            ];
+            $nodes[] = [
+                'id' => $stepId.'__v_'.$key,
+                'type' => 'send_'.$channelType,
+                'config' => [...$send, 'generated_for_split' => $stepId, 'variant' => $key],
+            ];
+        }
+
+        return [['variants' => $normalized], $nodes];
     }
 
     /** @return array{template_id: int, channel_id: int, retry_attempts: int, on_failure: string} */
