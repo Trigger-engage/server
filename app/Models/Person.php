@@ -18,6 +18,11 @@ class Person extends Model
         'unsubscribed_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(fn (Person $person) => Segment::includePerson($person));
+    }
+
     public function workspace(): BelongsTo
     {
         return $this->belongsTo(Workspace::class);

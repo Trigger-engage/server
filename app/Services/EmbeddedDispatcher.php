@@ -56,7 +56,7 @@ class EmbeddedDispatcher implements Dispatcher
             $person = Person::query()->where('workspace_id', $workspace->id)->where('external_id', $personId)->firstOrFail();
 
             if ($segment->type !== Segment::TYPE_MANUAL) {
-                throw new \LogicException('Automated segment membership is managed by events.');
+                throw new \LogicException('Only manual segment membership can be changed through the SDK.');
             }
 
             if ($add) {

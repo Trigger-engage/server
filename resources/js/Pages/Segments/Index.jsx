@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import Layout, { EmptyState, FieldError, PageHeader, buttonClass, inputClass, panelClass, secondaryButtonClass } from '../../components/Layout';
 import { engagePath } from '../../lib/engagePath';
@@ -17,7 +17,7 @@ export default function Index({ workspace, events, segments, operators }) {
 
     return (
         <Layout title="Segments" workspace={workspace}>
-            <PageHeader eyebrow="Audiences" title="Segments" description="Build reusable audiences manually, automatically from a single event, or with behavioural rules that recompute themselves." />
+            <PageHeader eyebrow="Audiences" title="Segments" description="All people is always ready for workspace-wide messages. Build narrower audiences manually, from events, or with behavioural rules." />
             <SegmentForm workspace={workspace} events={events} operators={operators} editing={editing} onDone={() => setEditing(null)} />
             <section className={`${panelClass} mt-6`}>
                 <div className="flex justify-between"><h2 className="font-semibold">All segments</h2><span className="text-xs text-slate-500">{segments.length} total</span></div>
@@ -141,18 +141,21 @@ function ConditionRow({ condition, events, operators, onChange, onRemove }) {
 }
 
 function SegmentCard({ segment, events, onEdit }) {
-    const summary = segment.type === 'event' ? `Auto: ${segment.event?.name}` : segment.type === 'rule' ? 'Rule-based' : 'Manual membership';
+    const summary = segment.type === 'all' ? 'Automatically includes every profile' : segment.type === 'event' ? `Auto: ${segment.event?.name}` : segment.type === 'rule' ? 'Rule-based' : 'Manual membership';
     return (
         <article className="rounded-xl border border-white/[0.08] bg-slate-950/30 p-5">
             <div className="flex items-start justify-between gap-3">
-                <div><h3 className="font-medium">{segment.name}</h3><p className="mt-1 text-xs text-slate-500">{summary}</p></div>
+                <div><div className="flex items-center gap-2"><h3 className="font-medium">{segment.name}</h3>{segment.type === 'all' && <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Default</span>}</div><p className="mt-1 text-xs text-slate-500">{summary}</p></div>
                 <span className="rounded-full bg-violet-400/10 px-2.5 py-1 text-xs text-violet-200">{segment.people_count} people</span>
             </div>
             {segment.description && <p className="mt-4 text-sm text-slate-500">{segment.description}</p>}
             {segment.type === 'rule' && <RuleSummary rules={segment.rules} events={events} />}
-            <div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-3 font-mono text-[11px] text-slate-600">
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3 font-mono text-[11px] text-slate-600">
                 <span>{segment.public_id}</span>
-                {segment.type === 'rule' && <button type="button" className="font-sans text-xs text-emerald-300 hover:text-emerald-200" onClick={onEdit}>Edit rules</button>}
+                <div className="flex items-center gap-3 font-sans">
+                    {segment.type === 'rule' && <button type="button" className="text-xs text-violet-300 hover:text-violet-200" onClick={onEdit}>Edit rules</button>}
+                    <Link href={engagePath(`segments/${segment.id}`)} className="text-xs font-medium text-emerald-300 hover:text-emerald-200">Manage →</Link>
+                </div>
             </div>
         </article>
     );

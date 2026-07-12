@@ -4,6 +4,8 @@ An A/B test is a `split` step inside an [automation](./automations.md). It route
 to one of 2–4 weighted message variants, then every path converges back to the next step in
 the journey.
 
+![A welcome A/B test in the journey editor: the trigger flows into an "A/B test" split that branches to Variant A and Variant B email sends before converging on Exit, with a live A/B results panel showing each variant's conversions](../images/ab-test-journey.png)
+
 ## What a variant is
 
 Each variant is its own send. It carries a `key` (`A`, `B`, `C`, `D`), a `weight`, a channel

@@ -1,0 +1,120 @@
+- generic [ref=f1e3]:
+  - complementary [ref=f1e4]:
+    - generic [ref=f1e5]:
+      - generic [ref=f1e6]: TE
+      - generic [ref=f1e7]:
+        - generic [ref=f1e8]: Trigger Engage
+        - generic [ref=f1e9]: Messaging automation
+    - navigation [ref=f1e10]:
+      - paragraph [ref=f1e11]: Workspace
+      - generic [ref=f1e12]:
+        - link "Overview" [ref=f1e13] [cursor=pointer]:
+          - /url: /app
+        - link "Analytics" [ref=f1e20] [cursor=pointer]:
+          - /url: /app/analytics
+        - link "People" [ref=f1e25] [cursor=pointer]:
+          - /url: /app/people
+        - link "Automations" [ref=f1e30] [cursor=pointer]:
+          - /url: /app/automations
+        - link "Events" [ref=f1e36] [cursor=pointer]:
+          - /url: /app/events
+        - link "Segments" [ref=f1e40] [cursor=pointer]:
+          - /url: /app/segments
+        - link "Templates" [ref=f1e47] [cursor=pointer]:
+          - /url: /app/templates
+        - link "Channels" [ref=f1e53] [cursor=pointer]:
+          - /url: /app/channels
+        - link "Broadcasts" [ref=f1e58] [cursor=pointer]:
+          - /url: /app/broadcasts
+        - link "Runs" [ref=f1e63] [cursor=pointer]:
+          - /url: /app/runs
+    - generic [ref=f1e69]:
+      - generic [ref=f1e70]:
+        - generic [ref=f1e71]: VE
+        - generic [ref=f1e72]:
+          - generic [ref=f1e73]: Verify Co
+          - generic [ref=f1e74]: ws_01kx948eq42papbcyt8261apjr
+      - generic [ref=f1e75]:
+        - generic [ref=f1e76]: Africa/Lagos
+        - generic [ref=f1e77]: Active
+  - generic [ref=f1e79]:
+    - banner [ref=f1e80]:
+      - generic [ref=f1e81]:
+        - generic [ref=f1e82]: Segments
+        - generic [ref=f1e83]: Verify Co
+      - generic [ref=f1e84]:
+        - generic [ref=f1e85]: Production ready
+        - generic [ref=f1e86]: V
+    - main [ref=f1e87]:
+      - generic [ref=f1e89]:
+        - paragraph [ref=f1e90]: Audiences
+        - heading "Segments" [level=1] [ref=f1e91]
+        - paragraph [ref=f1e92]: All people is always ready for workspace-wide messages. Build narrower audiences manually, from events, or with behavioural rules.
+      - generic [ref=f1e93]:
+        - heading "Create a segment" [level=2] [ref=f1e95]
+        - generic [ref=f1e96]:
+          - generic [ref=f1e97]:
+            - text: Name
+            - textbox "Name" [ref=f1e98]:
+              - /placeholder: No-show in the last 30 days
+          - generic [ref=f1e99]:
+            - text: Membership
+            - combobox "Membership" [ref=f1e100]:
+              - option "Manual via SDK or API" [selected]
+              - option "Automatic from an event"
+              - option "Rule-based (attributes + behaviour)"
+          - generic [ref=f1e101]:
+            - text: Description
+            - textbox "Description" [ref=f1e102]:
+              - /placeholder: Who belongs in this audience?
+          - button "Create segment" [ref=f1e104]
+      - generic [ref=f1e105]:
+        - generic [ref=f1e106]:
+          - heading "All segments" [level=2] [ref=f1e107]
+          - generic [ref=f1e108]: 3 total
+        - generic [ref=f1e109]:
+          - article [ref=f1e110]:
+            - generic [ref=f1e111]:
+              - generic [ref=f1e112]:
+                - generic [ref=f1e113]:
+                  - heading "All people" [level=3] [ref=f1e114]
+                  - generic [ref=f1e115]: Default
+                - paragraph [ref=f1e116]: Automatically includes every profile
+              - generic [ref=f1e117]: 35 people
+            - paragraph [ref=f1e118]: Every profile in this workspace. Membership updates automatically.
+            - generic [ref=f1e119]:
+              - generic [ref=f1e120]: seg_01kxafbp5q23a44h4w5sz9h5ad
+              - link "Manage →" [ref=f1e122] [cursor=pointer]:
+                - /url: /app/segments/4
+          - article [ref=f1e123]:
+            - generic [ref=f1e124]:
+              - generic [ref=f1e125]:
+                - heading "No-shows (30d)" [level=3] [ref=f1e127]
+                - paragraph [ref=f1e128]: Rule-based
+              - generic [ref=f1e129]: 8 people
+            - paragraph [ref=f1e130]: Booked but never attended
+            - generic [ref=f1e131]:
+              - paragraph [ref=f1e132]: Match all
+              - generic [ref=f1e133]: did session_booked · 30d
+              - generic [ref=f1e134]: did not session_attended · 30d
+            - generic [ref=f1e135]:
+              - generic [ref=f1e136]: seg_01kx948essaygwkhby7sg43a3w
+              - generic [ref=f1e137]:
+                - button "Edit rules" [ref=f1e138]
+                - link "Manage →" [ref=f1e139] [cursor=pointer]:
+                  - /url: /app/segments/1
+          - article [ref=f1e140]:
+            - generic [ref=f1e141]:
+              - generic [ref=f1e142]:
+                - heading "Premium plan" [level=3] [ref=f1e144]
+                - paragraph [ref=f1e145]: Rule-based
+              - generic [ref=f1e146]: 4 people
+            - generic [ref=f1e147]:
+              - paragraph [ref=f1e148]: Match all
+              - generic [ref=f1e149]: plan equals premium
+            - generic [ref=f1e150]:
+              - generic [ref=f1e151]: seg_01kx948esx641b2kewnb87xqaz
+              - generic [ref=f1e152]:
+                - button "Edit rules" [ref=f1e153]
+                - link "Manage →" [ref=f1e154] [cursor=pointer]:
+                  - /url: /app/segments/2

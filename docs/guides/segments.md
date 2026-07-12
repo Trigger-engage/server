@@ -2,17 +2,36 @@
 
 A segment is a reusable audience with a public id like `seg_01hxyz...`. Segments power one-time
 **broadcasts** — a broadcast snapshots the segment's members at send time and sends to that
-point-in-time list. There are three kinds, differing only in how membership is decided.
+point-in-time list. There are four kinds, differing only in how membership is decided.
 
-## The three types
+## The four types
 
 | Type | Membership changes when… | Editable via API? | Recomputes itself? |
 |---|---|---|---|
+| `all` | a profile is created | No (`422`) | Always current |
 | `manual` | you add/remove people yourself | **Yes** — `PUT`/`DELETE` | No |
 | `event` | a bound event fires for a person | No (`422`) | No — append-only on the event |
 | `rule` | data changes or time passes | No (`422`) | **Yes** — continuously |
 
-The membership source is recorded per person as `api`, `event`, or `rule`.
+The membership source is recorded per person as `system`, `api`, `event`, or `rule`.
+
+## Managing segments
+
+Open **Segments → Manage** to inspect a segment's paginated member list, search its members,
+rename it, update its description, or delete it. Manual segments also show a workspace profile
+search with direct **Add** and **Remove** actions. Event, rule, and All people membership remains
+read-only because the engine owns it.
+
+All people cannot be renamed or deleted. Other segments can be deleted until they are referenced
+by broadcast history; referenced segments are retained so historical audience reporting remains
+accurate.
+
+## All people
+
+Every workspace receives one protected **All people** segment automatically. Installation
+backfills existing identified and anonymous profiles, and each new profile is added with source
+`system`. Use it for workspace-wide broadcasts; it cannot be renamed through the segment editor
+or changed through the membership API.
 
 ## Manual segments
 
@@ -45,6 +64,8 @@ with `422`.
 A rule segment is a boolean rule over **attributes** and **behaviour** that **recomputes itself**
 as data changes and time passes. You create and edit it on the dashboard's **Segments** page, and
 its source is `rule`. Like event segments, it rejects manual-membership API edits with `422`.
+
+![The rule builder: "Include a person when all of these conditions match", with an attribute condition (plan equals premium) and a behaviour condition (performed activated in the last 30 days)](../images/segments-rule-builder.png)
 
 ### The rule shape
 

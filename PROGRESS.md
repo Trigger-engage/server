@@ -29,7 +29,7 @@ Founding milestone, shipped 2026-07-10. See [SPEC.md](SPEC.md) for architecture.
   draggable automation editing, event correlation and timeout paths, immutable publish,
   per-run timelines, metrics, and pause controls.
 - `engage:workspace` command + DemoSeeder (working sign-up → delay → welcome-email automation).
-- 63 tests green, including full-loop, branch routing, event correlation and timeout races,
+- 92 tests green, including full-loop, branch routing, event correlation and timeout races,
   automation-wide goal stopping and cancellation,
   delayed-worker precedence, re-entry, matcher/job replay,
   send retry/backoff, template warnings, UI workspace isolation, suppression,
@@ -68,6 +68,11 @@ Completed production-hardening pass:
 - Manual and event-driven segments, idempotent membership API/SDK operations, and
   one-time email/SMS/push broadcasts with audience snapshots, suppression checks,
   per-recipient status, and duplicate-send protection.
+- A protected All people segment is provisioned for every workspace, backfills
+  existing profiles, follows new identified and anonymous profiles, and can be
+  selected directly for workspace-wide broadcasts.
+- Segment management pages provide searchable member lists, manual add/remove,
+  rename and description editing, protected defaults, and history-safe deletion.
 - Dual distribution from one codebase: the standalone server remains deployable
   under `/app`, while `trigger-engage/server` installs into Laravel 10-13 with
   isolated migrations, published dashboard assets, host-authenticated routes,

@@ -1,0 +1,111 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: TE
+      - generic [ref=e7]:
+        - generic [ref=e8]: Trigger Engage
+        - generic [ref=e9]: Messaging automation
+    - navigation [ref=e10]:
+      - paragraph [ref=e11]: Workspace
+      - generic [ref=e12]:
+        - link "Overview" [ref=e13] [cursor=pointer]:
+          - /url: /app
+        - link "Analytics" [ref=e20] [cursor=pointer]:
+          - /url: /app/analytics
+        - link "People" [ref=e25] [cursor=pointer]:
+          - /url: /app/people
+        - link "Automations" [ref=e30] [cursor=pointer]:
+          - /url: /app/automations
+        - link "Events" [ref=e36] [cursor=pointer]:
+          - /url: /app/events
+        - link "Segments" [ref=e40] [cursor=pointer]:
+          - /url: /app/segments
+        - link "Templates" [ref=e47] [cursor=pointer]:
+          - /url: /app/templates
+        - link "Channels" [ref=e53] [cursor=pointer]:
+          - /url: /app/channels
+        - link "Broadcasts" [ref=e58] [cursor=pointer]:
+          - /url: /app/broadcasts
+        - link "Runs" [ref=e63] [cursor=pointer]:
+          - /url: /app/runs
+    - generic [ref=e69]:
+      - generic [ref=e70]:
+        - generic [ref=e71]: VE
+        - generic [ref=e72]:
+          - generic [ref=e73]: Verify Co
+          - generic [ref=e74]: ws_01kx948eq42papbcyt8261apjr
+      - generic [ref=e75]:
+        - generic [ref=e76]: Africa/Lagos
+        - generic [ref=e77]: Active
+  - generic [ref=e79]:
+    - banner [ref=e80]:
+      - generic [ref=e81]:
+        - generic [ref=e82]: Segments
+        - generic [ref=e83]: Verify Co
+      - generic [ref=e84]:
+        - generic [ref=e85]: Production ready
+        - generic [ref=e86]: V
+    - main [ref=e87]:
+      - generic [ref=e89]:
+        - paragraph [ref=e90]: Audiences
+        - heading "Segments" [level=1] [ref=e91]
+        - paragraph [ref=e92]: All people is always ready for workspace-wide messages. Build narrower audiences manually, from events, or with behavioural rules.
+      - generic [ref=e93]:
+        - heading "Create a segment" [level=2] [ref=e95]
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - text: Name
+            - textbox "Name" [ref=e98]:
+              - /placeholder: No-show in the last 30 days
+          - generic [ref=e99]:
+            - text: Membership
+            - combobox "Membership" [ref=e100]:
+              - option "Manual via SDK or API" [selected]
+              - option "Automatic from an event"
+              - option "Rule-based (attributes + behaviour)"
+          - generic [ref=e101]:
+            - text: Description
+            - textbox "Description" [ref=e102]:
+              - /placeholder: Who belongs in this audience?
+          - button "Create segment" [ref=e104]
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - heading "All segments" [level=2] [ref=e107]
+          - generic [ref=e108]: 3 total
+        - generic [ref=e109]:
+          - article [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - heading "All people" [level=3] [ref=e114]
+                  - generic [ref=e115]: Default
+                - paragraph [ref=e116]: Automatically includes every profile
+              - generic [ref=e117]: 35 people
+            - paragraph [ref=e118]: Every profile in this workspace. Membership updates automatically.
+            - generic [ref=e119]: seg_01kxafbp5q23a44h4w5sz9h5ad
+          - article [ref=e121]:
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - heading "No-shows (30d)" [level=3] [ref=e125]
+                - paragraph [ref=e126]: Rule-based
+              - generic [ref=e127]: 8 people
+            - paragraph [ref=e128]: Booked but never attended
+            - generic [ref=e129]:
+              - paragraph [ref=e130]: Match all
+              - generic [ref=e131]: did session_booked · 30d
+              - generic [ref=e132]: did not session_attended · 30d
+            - generic [ref=e133]:
+              - generic [ref=e134]: seg_01kx948essaygwkhby7sg43a3w
+              - button "Edit rules" [ref=e135]
+          - article [ref=e136]:
+            - generic [ref=e137]:
+              - generic [ref=e138]:
+                - heading "Premium plan" [level=3] [ref=e140]
+                - paragraph [ref=e141]: Rule-based
+              - generic [ref=e142]: 4 people
+            - generic [ref=e143]:
+              - paragraph [ref=e144]: Match all
+              - generic [ref=e145]: plan equals premium
+            - generic [ref=e146]:
+              - generic [ref=e147]: seg_01kx948esx641b2kewnb87xqaz
+              - button "Edit rules" [ref=e148]

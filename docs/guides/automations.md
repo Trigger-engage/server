@@ -13,6 +13,8 @@ Journeys are **built on the canvas**, not hand-authored. The React Flow editor i
 3. **Configure it** in the side panel that opens when you select a node.
 4. **Publish new version** when you're happy.
 
+![The visual journey editor: a trigger flowing through nodes on the React Flow canvas, with a step configuration panel on the right](../images/ab-test-journey.png)
+
 Publishing freezes an **immutable version**. Runs already in flight finish on the version they
 started on — republishing never disrupts them. Only new entrants use the new version.
 

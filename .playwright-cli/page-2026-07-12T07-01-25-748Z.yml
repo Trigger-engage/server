@@ -1,0 +1,212 @@
+- generic [ref=f2e3]:
+  - complementary [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - generic [ref=f2e6]: TE
+      - generic [ref=f2e7]:
+        - generic [ref=f2e8]: Trigger Engage
+        - generic [ref=f2e9]: Messaging automation
+    - navigation [ref=f2e10]:
+      - paragraph [ref=f2e11]: Workspace
+      - generic [ref=f2e12]:
+        - link "Overview" [ref=f2e13] [cursor=pointer]:
+          - /url: /app
+        - link "Analytics" [ref=f2e20] [cursor=pointer]:
+          - /url: /app/analytics
+        - link "People" [ref=f2e25] [cursor=pointer]:
+          - /url: /app/people
+        - link "Automations" [ref=f2e30] [cursor=pointer]:
+          - /url: /app/automations
+        - link "Events" [ref=f2e36] [cursor=pointer]:
+          - /url: /app/events
+        - link "Segments" [ref=f2e40] [cursor=pointer]:
+          - /url: /app/segments
+        - link "Templates" [ref=f2e47] [cursor=pointer]:
+          - /url: /app/templates
+        - link "Channels" [ref=f2e53] [cursor=pointer]:
+          - /url: /app/channels
+        - link "Broadcasts" [ref=f2e58] [cursor=pointer]:
+          - /url: /app/broadcasts
+        - link "Runs" [ref=f2e63] [cursor=pointer]:
+          - /url: /app/runs
+    - generic [ref=f2e69]:
+      - generic [ref=f2e70]:
+        - generic [ref=f2e71]: VE
+        - generic [ref=f2e72]:
+          - generic [ref=f2e73]: Verify Co
+          - generic [ref=f2e74]: ws_01kx948eq42papbcyt8261apjr
+      - generic [ref=f2e75]:
+        - generic [ref=f2e76]: Africa/Lagos
+        - generic [ref=f2e77]: Active
+  - generic [ref=f2e79]:
+    - banner [ref=f2e80]:
+      - generic [ref=f2e81]:
+        - generic [ref=f2e82]: Segment · Preview audience
+        - generic [ref=f2e83]: Verify Co
+      - generic [ref=f2e84]:
+        - generic [ref=f2e85]: Production ready
+        - generic [ref=f2e86]: V
+    - main [ref=f2e87]:
+      - link "← Back to segments" [ref=f2e88] [cursor=pointer]:
+        - /url: /app/segments
+      - generic [ref=f2e90]:
+        - generic [ref=f2e91]:
+          - paragraph [ref=f2e92]: Audience management
+          - heading "Preview audience" [level=1] [ref=f2e93]
+          - paragraph [ref=f2e94]: A manual segment for previewing audience management.
+        - generic [ref=f2e95]:
+          - generic [ref=f2e96]: Manual membership
+          - generic [ref=f2e97]: 0 people
+      - generic [ref=f2e98]:
+        - generic [ref=f2e99]:
+          - generic [ref=f2e100]:
+            - generic [ref=f2e101]:
+              - generic [ref=f2e102]:
+                - heading "Add people" [level=2] [ref=f2e103]
+                - paragraph [ref=f2e104]: Search this workspace and add profiles to the audience.
+              - generic [ref=f2e105]:
+                - textbox "Find people to add" [ref=f2e106]:
+                  - /placeholder: Name, ID, email, phone…
+                - button "Search" [ref=f2e107]
+            - generic [ref=f2e108]:
+              - generic [ref=f2e109]:
+                - generic [ref=f2e110]:
+                  - generic [ref=f2e111]: lead-1
+                  - generic [ref=f2e112]: lead1@example.com
+                - button "Add" [ref=f2e113]
+              - generic [ref=f2e114]:
+                - generic [ref=f2e115]:
+                  - generic [ref=f2e116]: lead-10
+                  - generic [ref=f2e117]: lead10@example.com
+                - button "Add" [ref=f2e118]
+              - generic [ref=f2e119]:
+                - generic [ref=f2e120]:
+                  - generic [ref=f2e121]: lead-11
+                  - generic [ref=f2e122]: lead11@example.com
+                - button "Add" [ref=f2e123]
+              - generic [ref=f2e124]:
+                - generic [ref=f2e125]:
+                  - generic [ref=f2e126]: lead-12
+                  - generic [ref=f2e127]: lead12@example.com
+                - button "Add" [ref=f2e128]
+              - generic [ref=f2e129]:
+                - generic [ref=f2e130]:
+                  - generic [ref=f2e131]: lead-13
+                  - generic [ref=f2e132]: lead13@example.com
+                - button "Add" [ref=f2e133]
+              - generic [ref=f2e134]:
+                - generic [ref=f2e135]:
+                  - generic [ref=f2e136]: lead-14
+                  - generic [ref=f2e137]: lead14@example.com
+                - button "Add" [ref=f2e138]
+              - generic [ref=f2e139]:
+                - generic [ref=f2e140]:
+                  - generic [ref=f2e141]: lead-15
+                  - generic [ref=f2e142]: lead15@example.com
+                - button "Add" [ref=f2e143]
+              - generic [ref=f2e144]:
+                - generic [ref=f2e145]:
+                  - generic [ref=f2e146]: lead-16
+                  - generic [ref=f2e147]: lead16@example.com
+                - button "Add" [ref=f2e148]
+              - generic [ref=f2e149]:
+                - generic [ref=f2e150]:
+                  - generic [ref=f2e151]: lead-17
+                  - generic [ref=f2e152]: lead17@example.com
+                - button "Add" [ref=f2e153]
+              - generic [ref=f2e154]:
+                - generic [ref=f2e155]:
+                  - generic [ref=f2e156]: lead-18
+                  - generic [ref=f2e157]: lead18@example.com
+                - button "Add" [ref=f2e158]
+              - generic [ref=f2e159]:
+                - generic [ref=f2e160]:
+                  - generic [ref=f2e161]: lead-19
+                  - generic [ref=f2e162]: lead19@example.com
+                - button "Add" [ref=f2e163]
+              - generic [ref=f2e164]:
+                - generic [ref=f2e165]:
+                  - generic [ref=f2e166]: lead-2
+                  - generic [ref=f2e167]: lead2@example.com
+                - button "Add" [ref=f2e168]
+              - generic [ref=f2e169]:
+                - generic [ref=f2e170]:
+                  - generic [ref=f2e171]: lead-20
+                  - generic [ref=f2e172]: lead20@example.com
+                - button "Add" [ref=f2e173]
+              - generic [ref=f2e174]:
+                - generic [ref=f2e175]:
+                  - generic [ref=f2e176]: lead-3
+                  - generic [ref=f2e177]: lead3@example.com
+                - button "Add" [ref=f2e178]
+              - generic [ref=f2e179]:
+                - generic [ref=f2e180]:
+                  - generic [ref=f2e181]: lead-4
+                  - generic [ref=f2e182]: lead4@example.com
+                - button "Add" [ref=f2e183]
+              - generic [ref=f2e184]:
+                - generic [ref=f2e185]:
+                  - generic [ref=f2e186]: lead-5
+                  - generic [ref=f2e187]: lead5@example.com
+                - button "Add" [ref=f2e188]
+              - generic [ref=f2e189]:
+                - generic [ref=f2e190]:
+                  - generic [ref=f2e191]: lead-6
+                  - generic [ref=f2e192]: lead6@example.com
+                - button "Add" [ref=f2e193]
+              - generic [ref=f2e194]:
+                - generic [ref=f2e195]:
+                  - generic [ref=f2e196]: lead-7
+                  - generic [ref=f2e197]: lead7@example.com
+                - button "Add" [ref=f2e198]
+              - generic [ref=f2e199]:
+                - generic [ref=f2e200]:
+                  - generic [ref=f2e201]: lead-8
+                  - generic [ref=f2e202]: lead8@example.com
+                - button "Add" [ref=f2e203]
+              - generic [ref=f2e204]:
+                - generic [ref=f2e205]:
+                  - generic [ref=f2e206]: lead-9
+                  - generic [ref=f2e207]: lead9@example.com
+                - button "Add" [ref=f2e208]
+          - generic [ref=f2e209]:
+            - generic [ref=f2e210]:
+              - generic [ref=f2e211]:
+                - heading "Segment members" [level=2] [ref=f2e212]
+                - paragraph [ref=f2e213]: 0 profiles currently belong to this audience.
+              - generic [ref=f2e214]:
+                - textbox "Search segment members" [ref=f2e215]:
+                  - /placeholder: Search members…
+                - button "Search" [ref=f2e216]
+            - paragraph [ref=f2e218]: No members match this search.
+        - complementary [ref=f2e219]:
+          - generic [ref=f2e220]:
+            - heading "Segment settings" [level=2] [ref=f2e221]
+            - generic [ref=f2e222]:
+              - generic [ref=f2e223]:
+                - text: Name
+                - textbox "Name" [ref=f2e224]: Preview audience
+              - generic [ref=f2e225]:
+                - text: Description
+                - textbox "Description" [ref=f2e226]:
+                  - /placeholder: Who belongs in this audience?
+                  - text: A manual segment for previewing audience management.
+              - button "Save changes" [ref=f2e227]
+          - generic [ref=f2e228]:
+            - heading "Details" [level=2] [ref=f2e229]
+            - generic [ref=f2e230]:
+              - generic [ref=f2e231]:
+                - term [ref=f2e232]: Type
+                - definition [ref=f2e233]: Manual membership
+              - generic [ref=f2e234]:
+                - term [ref=f2e235]: Public ID
+                - definition [ref=f2e236]: seg_01kxaj2q3vh329r2k6n9kemkhj
+              - generic [ref=f2e237]:
+                - term [ref=f2e238]: Broadcasts
+                - definition [ref=f2e239]: "0"
+              - generic [ref=f2e240]:
+                - term [ref=f2e241]: Created
+                - definition [ref=f2e242]: 12/07/2026
+          - generic [ref=f2e243]:
+            - heading "Delete segment" [level=2] [ref=f2e244]
+            - paragraph [ref=f2e245]: Deleting removes its membership permanently. Segments used in broadcast history are retained for reporting.
+            - button "Delete segment" [ref=f2e246]

@@ -11,6 +11,7 @@ use Inertia\Response;
 use TriggerEngage\Server\Engine\SegmentManager;
 use TriggerEngage\Server\Engine\SegmentRuleQuery;
 use TriggerEngage\Server\Http\Controllers\Controller;
+use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Models\Segment;
 
 class SegmentController extends Controller
@@ -28,7 +29,8 @@ class SegmentController extends Controller
             'segments' => $workspace->segments()
                 ->with('event:id,name')
                 ->withCount('people')
-                ->latest()
+                ->orderByRaw('case when type = ? then 0 else 1 end', [Segment::TYPE_ALL])
+                ->latest('created_at')
                 ->get(['id', 'public_id', 'name', 'type', 'description', 'event_id', 'rules', 'recomputed_at', 'created_at']),
         ]);
     }
@@ -55,22 +57,136 @@ class SegmentController extends Controller
         return back()->with('success', 'Segment created.');
     }
 
+    public function show(Request $request, Segment $segment): Response
+    {
+        $workspace = $request->attributes->get('workspace');
+        $this->ensureOwned($workspace->id, $segment);
+        $search = trim($request->string('search')->toString());
+        $addSearch = trim($request->string('add_search')->toString());
+
+        $members = $segment->people()
+            ->when($search, fn ($query) => $this->searchPeople($query, $search))
+            ->orderByRaw('external_id is null')
+            ->orderBy('external_id')
+            ->paginate(25, ['people.id', 'external_id', 'anonymous_id', 'email', 'phone', 'attributes', 'segment_person.source', 'segment_person.added_at'])
+            ->withQueryString();
+
+        $available = collect();
+        if ($segment->type === Segment::TYPE_MANUAL) {
+            $available = Person::query()
+                ->where('workspace_id', $workspace->id)
+                ->whereDoesntHave('segments', fn ($query) => $query->where('segments.id', $segment->id))
+                ->when($addSearch, fn ($query) => $this->searchPeople($query, $addSearch))
+                ->orderByRaw('external_id is null')
+                ->orderBy('external_id')
+                ->limit(20)
+                ->get(['id', 'external_id', 'anonymous_id', 'email', 'phone']);
+        }
+
+        return Inertia::render('Segments/Show', [
+            'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
+            'segment' => [
+                ...$segment->only('id', 'public_id', 'name', 'type', 'description', 'rules', 'recomputed_at', 'created_at'),
+                'event' => $segment->event?->only('id', 'name'),
+                'people_count' => $segment->people()->count(),
+                'broadcasts_count' => $segment->broadcasts()->count(),
+                'editable_membership' => $segment->type === Segment::TYPE_MANUAL,
+                'protected' => $segment->isAllPeople(),
+            ],
+            'members' => $members,
+            'availablePeople' => $available,
+            'filters' => ['search' => $search, 'add_search' => $addSearch],
+        ]);
+    }
+
     public function update(Request $request, Segment $segment): RedirectResponse
     {
         $workspace = $request->attributes->get('workspace');
-        abort_unless($segment->workspace_id === $workspace->id, 404);
-        abort_unless($segment->isRuleBased(), 422, 'Only rule-based segments can be edited.');
+        $this->ensureOwned($workspace->id, $segment);
+        abort_if($segment->isAllPeople(), 422, 'The default All people segment cannot be changed.');
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150', Rule::unique('segments')->where('workspace_id', $workspace->id)->ignore($segment->id)],
             'description' => ['nullable', 'string', 'max:500'],
         ]);
-        $data['rules'] = $this->validatedRules($request, $workspace->id);
+
+        $rulesChanged = $request->has('rules');
+        if ($rulesChanged) {
+            abort_unless($segment->isRuleBased(), 422, 'Only rule-based segments accept membership rules.');
+            $data['rules'] = $this->validatedRules($request, $workspace->id);
+        }
 
         $segment->update($data);
-        $this->segments->recompute($segment->refresh());
+        if ($rulesChanged) {
+            $this->segments->recompute($segment->refresh());
+        }
 
-        return back()->with('success', 'Segment rules updated and membership recomputed.');
+        return back()->with('success', $rulesChanged
+            ? 'Segment rules updated and membership recomputed.'
+            : 'Segment details updated.');
+    }
+
+    public function destroy(Request $request, Segment $segment): RedirectResponse
+    {
+        $workspace = $request->attributes->get('workspace');
+        $this->ensureOwned($workspace->id, $segment);
+        abort_if($segment->isAllPeople(), 422, 'The default All people segment cannot be deleted.');
+
+        if ($segment->broadcasts()->exists()) {
+            throw ValidationException::withMessages([
+                'segment' => 'This segment is used by broadcast history and cannot be deleted.',
+            ]);
+        }
+
+        $segment->delete();
+
+        return redirect()->route('engage.segments.index')->with('success', 'Segment deleted.');
+    }
+
+    public function addPerson(Request $request, Segment $segment, Person $person): RedirectResponse
+    {
+        $workspace = $request->attributes->get('workspace');
+        $this->ensureOwned($workspace->id, $segment);
+        $this->ensurePersonOwned($workspace->id, $person);
+        abort_unless($segment->type === Segment::TYPE_MANUAL, 422, 'Membership is computed automatically for this segment.');
+
+        $segment->people()->syncWithoutDetaching([
+            $person->id => ['source' => 'api', 'added_at' => now()],
+        ]);
+
+        return back()->with('success', 'Person added to segment.');
+    }
+
+    public function removePerson(Request $request, Segment $segment, Person $person): RedirectResponse
+    {
+        $workspace = $request->attributes->get('workspace');
+        $this->ensureOwned($workspace->id, $segment);
+        $this->ensurePersonOwned($workspace->id, $person);
+        abort_unless($segment->type === Segment::TYPE_MANUAL, 422, 'Membership is computed automatically for this segment.');
+
+        $segment->people()->detach($person->id);
+
+        return back()->with('success', 'Person removed from segment.');
+    }
+
+    protected function ensureOwned(int $workspaceId, Segment $segment): void
+    {
+        abort_unless($segment->workspace_id === $workspaceId, 404);
+    }
+
+    protected function ensurePersonOwned(int $workspaceId, Person $person): void
+    {
+        abort_unless($person->workspace_id === $workspaceId, 404);
+    }
+
+    protected function searchPeople($query, string $search)
+    {
+        return $query->where(function ($nested) use ($search): void {
+            $nested->where('external_id', 'like', "%{$search}%")
+                ->orWhere('anonymous_id', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%");
+        });
     }
 
     /**

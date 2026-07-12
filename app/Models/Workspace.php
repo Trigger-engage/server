@@ -15,6 +15,7 @@ class Workspace extends Model
         static::creating(function (Workspace $workspace) {
             $workspace->public_id ??= 'ws_'.strtolower((string) Str::ulid());
         });
+        static::created(fn (Workspace $workspace) => Segment::ensureAllPeople($workspace));
     }
 
     public function apiKeys(): HasMany

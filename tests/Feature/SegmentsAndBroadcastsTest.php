@@ -15,6 +15,50 @@ class SegmentsAndBroadcastsTest extends TestCase
     use BuildsWorkspaces;
     use RefreshDatabase;
 
+    public function test_every_workspace_has_an_all_people_segment_that_tracks_every_profile(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $segment = $workspace->segments()->where('type', Segment::TYPE_ALL)->sole();
+
+        $this->assertSame('All people', $segment->name);
+        $this->assertSame(0, $segment->people()->count());
+
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'ada', 'email' => 'ada@example.com']);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'tobi', 'email' => 'tobi@example.com']);
+
+        $this->assertSame(['ada', 'tobi'], $segment->people()->orderBy('external_id')->pluck('external_id')->all());
+        $this->assertSame(['system'], $segment->people()->pluck('source')->unique()->values()->all());
+
+        $person = $segment->people()->first();
+        $this->putJson("/api/v1/segments/{$segment->public_id}/people/{$person->external_id}", [], $this->authHeaders($workspace, $key))
+            ->assertUnprocessable();
+    }
+
+    public function test_all_people_segment_can_be_used_for_a_workspace_wide_broadcast(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+        $segment = $workspace->segments()->where('type', Segment::TYPE_ALL)->sole();
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'ada', 'email' => 'ada@example.com']);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'tobi', 'email' => 'tobi@example.com']);
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+
+        $this->post('/app/broadcasts', [
+            'name' => 'Everyone update',
+            'channel' => 'email',
+            'segment_id' => $segment->id,
+            'template_id' => $template->id,
+            'channel_id' => $channel->id,
+        ], $headers)->assertRedirect();
+
+        $broadcast = $workspace->broadcasts()->sole();
+        $this->post("/app/broadcasts/{$broadcast->id}/send", [], $headers)->assertRedirect();
+
+        $this->assertSame(2, $broadcast->recipients()->count());
+        $this->assertSame(2, $workspace->messages()->count());
+    }
+
     public function test_event_automatically_adds_person_to_matching_segments_once(): void
     {
         [$workspace, $key] = $this->makeWorkspace();
@@ -44,6 +88,78 @@ class SegmentsAndBroadcastsTest extends TestCase
         $this->deleteJson("/api/v1/segments/{$segment->public_id}/people/{$person->external_id}", [], $headers)
             ->assertOk()->assertJsonPath('member', false);
         $this->assertFalse($segment->people()->whereKey($person->id)->exists());
+    }
+
+    public function test_manual_segment_management_page_can_search_add_and_remove_people(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+        $segment = $workspace->segments()->create(['name' => 'Newsletter', 'type' => Segment::TYPE_MANUAL]);
+        $ada = Person::create(['workspace_id' => $workspace->id, 'external_id' => 'ada', 'email' => 'ada@example.com']);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'tobi', 'email' => 'tobi@example.com']);
+
+        $this->get("/app/segments/{$segment->id}?add_search=ada", $headers)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Segments/Show')
+                ->where('segment.name', 'Newsletter')
+                ->where('segment.editable_membership', true)
+                ->has('members.data', 0)
+                ->has('availablePeople', 1)
+                ->where('availablePeople.0.external_id', 'ada'));
+
+        $this->post("/app/segments/{$segment->id}/people/{$ada->id}", [], $headers)->assertRedirect();
+        $this->assertTrue($segment->people()->whereKey($ada->id)->exists());
+
+        $this->get("/app/segments/{$segment->id}", $headers)
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('members.data', 1)
+                ->where('members.data.0.external_id', 'ada'));
+
+        $this->delete("/app/segments/{$segment->id}/people/{$ada->id}", [], $headers)->assertRedirect();
+        $this->assertFalse($segment->people()->whereKey($ada->id)->exists());
+    }
+
+    public function test_segments_can_be_renamed_and_deleted_but_all_people_is_protected(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        [$other] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+        $segment = $workspace->segments()->create(['name' => 'Old name', 'type' => Segment::TYPE_MANUAL]);
+        $allPeople = $workspace->segments()->where('type', Segment::TYPE_ALL)->sole();
+        $otherSegmentId = $other->segments()->where('type', Segment::TYPE_ALL)->value('id');
+        $outsider = Person::create(['workspace_id' => $other->id, 'external_id' => 'outside']);
+
+        $this->put("/app/segments/{$segment->id}", ['name' => 'New name', 'description' => 'Updated audience'], $headers)
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame('New name', $segment->refresh()->name);
+
+        $this->put("/app/segments/{$allPeople->id}", ['name' => 'Everyone'], $headers)->assertUnprocessable();
+        $this->delete("/app/segments/{$allPeople->id}", [], $headers)->assertUnprocessable();
+        $this->post("/app/segments/{$segment->id}/people/{$outsider->id}", [], $headers)->assertNotFound();
+        $this->get("/app/segments/{$otherSegmentId}", $headers)->assertNotFound();
+
+        $this->delete("/app/segments/{$segment->id}", [], $headers)->assertRedirect('/app/segments');
+        $this->assertModelMissing($segment);
+        $this->assertModelExists($allPeople);
+    }
+
+    public function test_segment_used_by_broadcast_history_cannot_be_deleted(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+        $segment = $workspace->segments()->create(['name' => 'Newsletter', 'type' => Segment::TYPE_MANUAL]);
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->post('/app/broadcasts', [
+            'name' => 'History', 'channel' => 'email', 'segment_id' => $segment->id,
+            'template_id' => $template->id, 'channel_id' => $channel->id,
+        ], $headers)->assertRedirect();
+
+        $this->delete("/app/segments/{$segment->id}", [], $headers)
+            ->assertRedirect()
+            ->assertSessionHasErrors('segment');
+        $this->assertModelExists($segment);
     }
 
     public function test_api_cannot_manually_change_automatic_or_cross_workspace_segments(): void
@@ -190,8 +306,13 @@ class SegmentsAndBroadcastsTest extends TestCase
         $other->segments()->create(['name' => 'Hidden', 'type' => Segment::TYPE_MANUAL]);
         $headers = $this->authHeaders($workspace, $key);
 
-        $this->get('/app/segments', $headers)->assertInertia(fn (Assert $page) => $page->component('Segments/Index')->has('segments', 1)->where('segments.0.name', 'Visible'));
-        $this->get('/app/broadcasts', $headers)->assertInertia(fn (Assert $page) => $page->component('Broadcasts/Index')->has('segments', 1));
+        $this->get('/app/segments', $headers)->assertInertia(fn (Assert $page) => $page
+            ->component('Segments/Index')
+            ->has('segments', 2)
+            ->where('segments.0.name', 'All people')
+            ->where('segments.0.type', Segment::TYPE_ALL)
+            ->where('segments.1.name', 'Visible'));
+        $this->get('/app/broadcasts', $headers)->assertInertia(fn (Assert $page) => $page->component('Broadcasts/Index')->has('segments', 2));
         $this->get('/app/segments')->assertUnauthorized();
         $this->get('/app/broadcasts')->assertUnauthorized();
     }

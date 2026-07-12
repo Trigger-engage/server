@@ -4,6 +4,8 @@ The **Analytics** dashboard is a read-only overview of how your workspace is
 performing — messages sent, journeys started, events tracked, and how far your
 messages get down the delivery funnel. It is a page, not an API.
 
+![The Analytics dashboard: stat tiles with period-over-period deltas above a sent-vs-delivered message-volume chart](../images/analytics.png)
+
 ## Opening analytics
 
 Click **Analytics** in the dashboard sidebar, or go straight to the URL:

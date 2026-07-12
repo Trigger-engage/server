@@ -14,6 +14,8 @@ publishing, and per-run timelines.
 For deployment see [Deploying the backend](#deploying-the-backend) and
 [PRODUCTION.md](PRODUCTION.md).
 
+![The analytics dashboard: message, delivery, run, and event totals with period deltas above a message-volume trend chart](docs/images/analytics.png)
+
 ## Choose an installation
 
 ### Embed it in an existing Laravel application
@@ -89,6 +91,10 @@ Segments are reusable audiences, in three flavours ([full guide](docs/guides/seg
   idempotently.
 - **Rule-based** — a boolean rule over attributes and behaviour (e.g. *booked but not
   attended in 30 days*) that **recomputes itself** as data changes and time passes.
+
+Every workspace also includes a protected **All people** segment. Existing profiles are
+backfilled during migration and every new identified or anonymous profile joins it
+automatically, so a workspace-wide broadcast never needs audience setup.
 
 Event-driven and rule-based membership is computed by the engine and cannot be changed
 through the manual-membership API.

@@ -27,7 +27,7 @@ class RuleSegmentsTest extends TestCase
             ]],
         ], $this->authHeaders($workspace, $key))->assertRedirect()->assertSessionHasNoErrors();
 
-        $segment = $workspace->segments()->sole();
+        $segment = $workspace->segments()->where('type', Segment::TYPE_RULE)->sole();
         $this->assertSame(['prime'], $segment->people()->pluck('external_id')->all());
         $this->assertSame('rule', $segment->people()->first()->pivot->source);
     }
@@ -55,7 +55,7 @@ class RuleSegmentsTest extends TestCase
             ]],
         ], $headers)->assertRedirect()->assertSessionHasNoErrors();
 
-        $this->assertSame(['no-show'], $workspace->segments()->sole()->people()->pluck('external_id')->all());
+        $this->assertSame(['no-show'], $workspace->segments()->where('type', Segment::TYPE_RULE)->sole()->people()->pluck('external_id')->all());
     }
 
     public function test_membership_updates_incrementally_when_a_new_event_arrives(): void
@@ -73,7 +73,7 @@ class RuleSegmentsTest extends TestCase
                 ['kind' => 'event', 'event_id' => $attended->id, 'performed' => false, 'within_days' => 0],
             ]],
         ], $headers)->assertRedirect();
-        $segment = $workspace->segments()->sole();
+        $segment = $workspace->segments()->where('type', Segment::TYPE_RULE)->sole();
         $this->assertSame(1, $segment->people()->count());
 
         // Attending removes the person from the no-show audience without a full sweep.
@@ -96,7 +96,7 @@ class RuleSegmentsTest extends TestCase
                 ['kind' => 'event', 'event_id' => $login->id, 'performed' => false, 'within_days' => 14],
             ]],
         ], $headers)->assertRedirect();
-        $segment = $workspace->segments()->sole();
+        $segment = $workspace->segments()->where('type', Segment::TYPE_RULE)->sole();
         $this->assertSame(0, $segment->people()->count());
 
         // 15 days later they qualify, and the periodic sweep picks it up.
@@ -129,7 +129,7 @@ class RuleSegmentsTest extends TestCase
             'name' => 'Geo', 'type' => 'rule',
             'rules' => ['match' => 'all', 'conditions' => [['kind' => 'attribute', 'field' => 'country', 'operator' => 'equals', 'value' => 'NG']]],
         ], $headers)->assertRedirect();
-        $segment = $workspace->segments()->sole();
+        $segment = $workspace->segments()->where('type', Segment::TYPE_RULE)->sole();
         $this->assertSame(['a'], $segment->people()->pluck('external_id')->all());
 
         $this->put("/app/segments/{$segment->id}", [
