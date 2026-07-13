@@ -8,6 +8,8 @@ The UI includes a draggable React Flow journey builder, behavioural segments,
 A/B tests, provider configuration, a time-series analytics dashboard, immutable
 publishing, and per-run timelines.
 
+Project home and guides: **[triggerengage.com](https://triggerengage.com)** · [blog](https://triggerengage.com/blog/).
+
 **📚 Full documentation is in [docs/](docs/README.md)** — concepts, guides
 (journeys, segments, A/B testing, anonymous identity, analytics), the
 [HTTP API reference](docs/API.md), and the [architecture spec](SPEC.md).
@@ -471,3 +473,8 @@ cutover, shadow-mode rollout, monitoring, and release gates.
 ```bash
 ./vendor/bin/phpunit
 ```
+
+## Learn more
+
+- **Website:** [triggerengage.com](https://triggerengage.com)
+- **Guides on the blog:** [event-based emails in Laravel](https://triggerengage.com/blog/event-based-emails-laravel.html) · [building a notification system in Laravel](https://triggerengage.com/blog/notification-system-laravel.html) · [migrating from Customer.io](https://triggerengage.com/blog/migrate-from-customer-io.html) · [marketing automation explained](https://triggerengage.com/blog/marketing-automation-explained.html)
