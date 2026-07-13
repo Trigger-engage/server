@@ -5,6 +5,7 @@
     "description": "Self-hosted or embedded Laravel messaging automation platform.",
     "keywords": ["laravel", "messaging", "automation", "email", "sms", "push", "customer-io"],
     "license": "MIT",
+    "homepage": "https://triggerengage.com",
     "require": {
         "php": "^8.2",
         "inertiajs/inertia-laravel": "^2.0",
