@@ -351,6 +351,19 @@ recipients before enabling production traffic:
 - OneSignal: configure App ID, REST API key, and Event Stream bearer token.
   Send events to `POST /api/v1/webhooks/onesignal/{channel_id}` with
   `Authorization: Bearer <token>`.
+- Expo: no project ID is needed — the push token names the project. Set an
+  access token only if your Expo project enforces one. Expo has no delivery
+  webhook; `engage:tick` polls `/--/api/v2/push/getReceipts` to settle each
+  message, so the scheduler must be running for pushes to reach `delivered`.
+  Write each profile's device tokens to the `expo_push_tokens` attribute:
+
+  ```bash
+  curl --fail-with-body -X PUT \
+    --user "$TRIGGER_ENGAGE_WORKSPACE_ID:$TRIGGER_ENGAGE_API_KEY" \
+    -H 'Content-Type: application/json' \
+    -d '{"attributes":{"expo_push_tokens":["ExponentPushToken[xxxxxxxx]"]}}' \
+    "$TRIGGER_ENGAGE_URL/api/v1/people/user-42"
+  ```
 
 ### 6. Run an end-to-end smoke test
 

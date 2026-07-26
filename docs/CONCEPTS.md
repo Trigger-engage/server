@@ -69,10 +69,23 @@ A configured provider for a workspace, with encrypted credentials and one defaul
 
 - **Email** — SMTP, ZeptoMail, SES, Mailgun, Postmark (any SMTP-compatible provider)
 - **SMS** — Termii
-- **Push** — OneSignal
+- **Push** — OneSignal, Expo
 
 Delivery status (sent, delivered, bounced, failed) flows back in through provider
-[webhooks](../PRODUCTION.md#provider-configuration).
+[webhooks](../PRODUCTION.md#provider-configuration) — except Expo, which publishes no webhook
+and is instead polled for receipts on the scheduled tick.
+
+The two push drivers address recipients differently, which decides what you have to store on a
+profile:
+
+| Driver | Addressed by | Profile attribute |
+|---|---|---|
+| OneSignal | user alias — OneSignal owns the device tokens | `onesignal_external_id` (falls back to `external_id`) |
+| Expo | the device tokens themselves | `expo_push_tokens` (list) or `expo_push_token` (string) |
+
+An Expo send fans out to every token on the profile. When Expo reports a token as
+`DeviceNotRegistered`, that token is dropped from the profile; the person is *not* suppressed,
+because a reinstall issues a fresh token.
 
 ## Segment
 

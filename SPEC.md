@@ -30,7 +30,7 @@ Call sites: model observers, event listeners, payment webhooks. So the contract 
 Channels already in use at Mytherapist.ng (first-class drivers for MVP):
 - **Email:** ZeptoMail (via Laravel mail) — driver model must also cover SMTP/SES/Mailgun/Postmark for OSS users
 - **SMS:** Termii (Nigeria-first; Twilio later for OSS reach)
-- **Push:** OneSignal (Expo/FCM later)
+- **Push:** OneSignal and Expo (bare FCM/APNs later)
 
 ## 2. Core concepts
 

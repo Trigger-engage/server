@@ -64,6 +64,11 @@ delivered/opened/clicked state never advances, so those numbers stay at zero.
 tells it. Wire up the callbacks first: see
 [Provider configuration](../../PRODUCTION.md#provider-configuration).
 
+**Expo is the exception.** It publishes no webhook, so there is nothing to wire
+up — `engage:tick` polls Expo for receipts instead. What it needs is the
+scheduler actually running; if it is not, Expo pushes stall at *sent*. Expo
+reports delivery only, so **Opened** and **Clicked** stay empty for that channel.
+
 Email is sent over SMTP, which reports no delivery, open, or click callbacks, so
 email messages show as **sent** and do not advance the funnel on their own.
 

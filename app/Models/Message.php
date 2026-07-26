@@ -10,6 +10,7 @@ class Message extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'pending_receipts' => 'array',
         'sent_at' => 'datetime',
         'delivered_at' => 'datetime',
         'opened_at' => 'datetime',
