@@ -11,55 +11,74 @@ use TriggerEngage\Server\Models\Person;
  * recompute and the single-person membership check run through here, so the two
  * can never disagree about who belongs.
  *
- * Rule shape:
+ * Rule shape (groups nest up to MAX_DEPTH levels):
  * {
  *   "match": "all" | "any",
  *   "conditions": [
  *     {"kind":"attribute","field":"plan","operator":"equals","value":"premium"},
- *     {"kind":"event","event_id":5,"performed":true,"within_days":30}
+ *     {"kind":"event","event_id":5,"performed":true,"within_days":30,
+ *      "count_operator":"gte","count":3},
+ *     {"kind":"segment","segment_id":9,"in":false},
+ *     {"kind":"group","match":"any","conditions":[...]}
  *   ]
  * }
+ *
+ * Segment conditions read the materialized segment_person rows, never the
+ * referenced segment's rule, so evaluation always terminates even when rule
+ * segments reference each other. Chains converge across recompute passes.
  */
 class SegmentRuleQuery
 {
     public const OPERATORS = ['equals', 'not_equals', 'gt', 'gte', 'lt', 'lte', 'contains', 'exists', 'not_exists'];
 
+    public const COUNT_OPERATORS = ['gte', 'lte', 'eq'];
+
+    public const MAX_DEPTH = 3;
+
     /** @return Builder<Person> */
     public function forWorkspace(int $workspaceId, array $rules): Builder
     {
-        $conditions = $rules['conditions'] ?? [];
-        $match = ($rules['match'] ?? 'all') === 'any' ? 'any' : 'all';
-
         $query = Person::query()->where('workspace_id', $workspaceId);
 
         // An empty rule set matches nobody rather than the whole workspace, so a
         // misconfigured segment can never accidentally message everyone.
-        if ($conditions === []) {
+        if (($rules['conditions'] ?? []) === []) {
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->where(function (Builder $group) use ($conditions, $match): void {
-            foreach (array_values($conditions) as $index => $condition) {
-                $clause = fn (Builder $q) => $this->applyCondition($q, $condition);
-
-                if ($match === 'any' && $index > 0) {
-                    $group->orWhere($clause);
-                } else {
-                    $group->where($clause);
-                }
-            }
-        });
+        return $query->where(fn (Builder $group) => $this->applyGroup($group, $rules));
     }
 
-    protected function applyCondition(Builder $query, array $condition): void
+    protected function applyGroup(Builder $query, array $group): void
     {
-        if (($condition['kind'] ?? 'attribute') === 'event') {
-            $this->applyEventCondition($query, $condition);
+        $conditions = array_values($group['conditions'] ?? []);
+        $match = ($group['match'] ?? 'all') === 'any' ? 'any' : 'all';
+
+        if ($conditions === []) {
+            $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $this->applyAttributeCondition($query, $condition);
+        foreach ($conditions as $index => $condition) {
+            $clause = fn (Builder $q) => $this->applyCondition($q, $condition);
+
+            if ($match === 'any' && $index > 0) {
+                $query->orWhere($clause);
+            } else {
+                $query->where($clause);
+            }
+        }
+    }
+
+    protected function applyCondition(Builder $query, array $condition): void
+    {
+        match ($condition['kind'] ?? 'attribute') {
+            'group' => $this->applyGroup($query, $condition),
+            'event' => $this->applyEventCondition($query, $condition),
+            'segment' => $this->applySegmentCondition($query, $condition),
+            default => $this->applyAttributeCondition($query, $condition),
+        };
     }
 
     protected function applyAttributeCondition(Builder $query, array $condition): void
@@ -106,10 +125,43 @@ class SegmentRuleQuery
             }
         };
 
-        if ($performed) {
-            $query->whereHas('occurrences', $occurrences);
-        } else {
+        if (! $performed) {
             $query->whereDoesntHave('occurrences', $occurrences);
+
+            return;
+        }
+
+        [$operator, $count] = $this->countComparison($condition);
+
+        $query->whereHas('occurrences', $occurrences, $operator, $count);
+    }
+
+    /**
+     * "Performed" defaults to at-least-once; count_operator + count narrow it
+     * to e.g. at least 3 times, at most 2 times, or exactly once.
+     *
+     * @return array{string, int}
+     */
+    protected function countComparison(array $condition): array
+    {
+        $count = max(1, (int) ($condition['count'] ?? 1));
+
+        return match ($condition['count_operator'] ?? 'gte') {
+            'lte' => ['<=', $count],
+            'eq' => ['=', $count],
+            default => ['>=', $count],
+        };
+    }
+
+    protected function applySegmentCondition(Builder $query, array $condition): void
+    {
+        $segmentId = $condition['segment_id'] ?? null;
+        $membership = fn (BuilderContract $q) => $q->where('segments.id', $segmentId);
+
+        if (($condition['in'] ?? true) !== false) {
+            $query->whereHas('segments', $membership);
+        } else {
+            $query->whereDoesntHave('segments', $membership);
         }
     }
 }

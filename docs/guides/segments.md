@@ -69,7 +69,9 @@ its source is `rule`. Like event segments, it rejects manual-membership API edit
 
 ### The rule shape
 
-A rule is one boolean group: a `match` mode and a list of `conditions`.
+A rule is a boolean group: a `match` mode and a list of `conditions`. Groups can nest up to
+three levels deep, so AND/OR combinations like *"city is Lagos AND (premium OR student)"* are
+expressible.
 
 ```jsonc
 {
@@ -78,14 +80,23 @@ A rule is one boolean group: a `match` mode and a list of `conditions`.
     // Attribute condition — a property or identity column
     { "kind": "attribute", "field": "plan", "operator": "equals", "value": "premium" },
 
-    // Behaviour condition — did / did not perform an event in a window
-    { "kind": "event", "event_id": "session_booked", "performed": true, "within_days": 30 }
+    // Behaviour condition — did / did not perform an event in a window,
+    // optionally a certain number of times
+    { "kind": "event", "event_id": "session_booked", "performed": true, "within_days": 30,
+      "count_operator": "gte", "count": 3 },
+
+    // Segment condition — membership of another segment
+    { "kind": "segment", "segment_id": 9, "in": false },
+
+    // Nested group — its own match mode and conditions
+    { "kind": "group", "match": "any", "conditions": [ /* … */ ] }
   ]
 }
 ```
 
 In the UI this reads as *"Include a person when [all|any] of these conditions match,"* with
-**+ Attribute** and **+ Behaviour** buttons to append conditions.
+**+ Attribute**, **+ Behaviour**, **+ Segment**, and **+ Group** buttons to append conditions,
+and a **Preview audience** button that estimates the match count before you save.
 
 The `conditions` list must hold at least one entry — an **empty list matches nobody**.
 
@@ -106,15 +117,25 @@ or an identity column (`email`, `phone`, `external_id`).
 
 ### Behaviour conditions
 
-`{ "kind": "event", "event_id", "performed", "within_days" }`.
+`{ "kind": "event", "event_id", "performed", "within_days", "count_operator", "count" }`.
 
 - `event_id` — the **numeric id** of the event. You never type this: the dashboard shows event
   names and stores their ids, so the readable names in the examples below stand in for those ids.
 - `performed` — `true` (did) or `false` (did not).
 - `within_days` — a number of days; `0` means **ever**.
+- `count_operator` + `count` — optional, only for `performed: true`: `gte` (at least, the
+  default), `lte` (at most), or `eq` (exactly) that many occurrences in the window.
 
-So `performed: true, within_days: 30` is *"performed the event in the last 30 days,"* and
+So `performed: true, within_days: 30` is *"performed the event in the last 30 days,"*
+`performed: true, count_operator: "gte", count: 3` is *"performed it at least 3 times,"* and
 `performed: false, within_days: 14` is *"did NOT perform the event in the last 14 days."*
+
+### Segment conditions
+
+`{ "kind": "segment", "segment_id", "in" }` — membership of another segment (`in: false` for
+*not in*). The check reads the referenced segment's **materialized** membership, never its rule,
+so evaluation always terminates. A segment cannot reference itself; chains of rule segments that
+reference each other converge across recompute passes rather than instantly.
 
 ### Worked examples
 
@@ -169,11 +190,44 @@ exactly as they do for manual and event segments. It updates three ways:
 On creation and on **every rule edit**, membership is recomputed immediately. Rule segments can be
 edited after creation from the dashboard; editing recomputes membership.
 
+## Import, export, and duplicate
+
+- **CSV import** (manual segments): upload a CSV with an `external_id` and/or `email` header on
+  the segment's Manage page. Rows match existing workspace profiles; tick *Create missing
+  people* to create profiles for unmatched `external_id` rows (`email`/`phone` columns are
+  stored when present). Imports are limited to 5000 rows per file, and imported membership is
+  recorded with source `import`.
+- **CSV export** (any segment): the Manage page's *Export members as CSV* streams
+  `external_id, anonymous_id, email, phone, source, added_at` for the current member list.
+- **Duplicate**: copies the segment's type, description, and rules to "`Name` (copy)". A rule
+  duplicate recomputes immediately; a manual duplicate starts from a snapshot of the same
+  members. All people cannot be duplicated.
+
+## Segment-triggered automations
+
+Real membership changes are recorded as **`segment_entered`** / **`segment_left`** events for
+the person, with a payload of `{segment_id, segment_public_id, segment_name}`. That makes
+"person enters segment" a first-class automation trigger: create an automation on
+`segment_entered` and add a **trigger filter** on `segment_public_id` so it only starts for one
+segment (without a filter it starts for every segment someone enters).
+
+Only confirmed changes are recorded — re-adding an existing member records nothing, which is
+also what keeps event-bound segments listening to these events from looping. Entering the
+default **All people** segment (i.e. profile creation) is deliberately not recorded.
+
+Automations can also gate on membership mid-journey with the **segment filter** step: the person
+continues while their membership matches (*is in* / *is not in*), and exits otherwise — see the
+[automations guide](./automations.md).
+
 ## Segments and broadcasts
 
 A **broadcast** (in the dashboard) sends a one-time message to a **point-in-time snapshot** of a
 segment's members — see the [Broadcast concept](../CONCEPTS.md#broadcast). Later membership changes,
 whatever the segment type, never alter an already-sent broadcast.
+
+Start one directly from the audience: the segment card's **Broadcast** link and the Manage
+page's **Create broadcast to this segment** button open the broadcast form with that segment
+preselected.
 
 ## Next
 

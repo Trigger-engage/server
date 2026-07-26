@@ -4,6 +4,7 @@ namespace TriggerEngage\Server\Http\Controllers\Api\V1;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use TriggerEngage\Server\Engine\SegmentManager;
 use TriggerEngage\Server\Http\Controllers\Controller;
 use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Models\Segment;
@@ -14,7 +15,7 @@ class SegmentMembershipController extends Controller
     {
         [$resolved, $person] = $this->resolve($request, $segment, $externalId);
         abort_if($resolved->type !== Segment::TYPE_MANUAL, 422, 'Only manual segment membership can be changed through the API.');
-        $resolved->people()->syncWithoutDetaching([$person->id => ['source' => 'api', 'added_at' => now()]]);
+        app(SegmentManager::class)->addMember($resolved, $person);
 
         return response()->json(['segment' => $resolved->public_id, 'person_id' => $person->external_id, 'member' => true]);
     }
@@ -23,7 +24,7 @@ class SegmentMembershipController extends Controller
     {
         [$resolved, $person] = $this->resolve($request, $segment, $externalId);
         abort_if($resolved->type !== Segment::TYPE_MANUAL, 422, 'Only manual segment membership can be changed through the API.');
-        $resolved->people()->detach($person->id);
+        app(SegmentManager::class)->removeMember($resolved, $person);
 
         return response()->json(['segment' => $resolved->public_id, 'person_id' => $person->external_id, 'member' => false]);
     }
