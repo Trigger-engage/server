@@ -24,6 +24,7 @@ class ChannelConnectionTester
             'smtp' => $this->testSmtp($credentials),
             'termii' => $this->testTermii($credentials),
             'onesignal' => $this->testOnesignal($credentials),
+            'expo' => $this->testExpo($credentials),
             'log' => $this->ok('Log driver needs no connection — messages are written to the application log.'),
             default => $this->fail("Unknown driver [{$driver}]."),
         };
@@ -111,6 +112,42 @@ class ChannelConnectionTester
             return $this->fail('OneSignal rejected the credentials: '.trim($response->body()));
         } catch (Throwable $exception) {
             return $this->fail('Could not reach OneSignal: '.$exception->getMessage());
+        }
+    }
+
+    /**
+     * Expo has no credential-introspection endpoint, so probe with an empty
+     * receipt lookup: it is free, sends nothing, and still exercises the
+     * access token when a project has enhanced security switched on.
+     *
+     * @param  array<string, mixed>  $credentials
+     * @return array{ok: bool, message: string}
+     */
+    protected function testExpo(array $credentials): array
+    {
+        try {
+            $response = Http::baseUrl($credentials['base_url'] ?? PushChannel::EXPO_BASE_URL)
+                ->when(filled($credentials['access_token'] ?? null), fn ($client) => $client->withToken((string) $credentials['access_token']))
+                ->timeout((int) ($credentials['timeout'] ?? 10))
+                ->acceptJson()
+                ->asJson()
+                ->post('/--/api/v2/push/getReceipts', ['ids' => []]);
+
+            $error = $response->json('errors.0.code');
+
+            if ($error === 'UNAUTHORIZED' || $response->status() === 401) {
+                return $this->fail('Expo rejected the access token. Check the token in your Expo account settings.');
+            }
+
+            if ($response->failed()) {
+                return $this->fail('Expo rejected the request: '.trim($response->body()));
+            }
+
+            return $this->ok(filled($credentials['access_token'] ?? null)
+                ? 'Reached the Expo push service and the access token is valid.'
+                : 'Reached the Expo push service. No access token set — fine unless your project enforces one.');
+        } catch (Throwable $exception) {
+            return $this->fail('Could not reach Expo: '.$exception->getMessage());
         }
     }
 

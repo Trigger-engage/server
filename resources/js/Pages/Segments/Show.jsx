@@ -1,4 +1,5 @@
-import { Link, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
+import { useRef } from 'react';
 import Layout, { FieldError, PageHeader, buttonClass, inputClass, panelClass, secondaryButtonClass } from '../../components/Layout';
 import { engagePath } from '../../lib/engagePath';
 
@@ -76,6 +77,8 @@ export default function Show({ workspace, segment, members, availablePeople, fil
                         </div>
                     )}
 
+                    {segment.editable_membership && <ImportPanel segment={segment} />}
+
                     <section className={panelClass}>
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div><h2 className="font-semibold">Segment members</h2><p className="mt-1 text-sm text-slate-500">{members.total} profiles currently belong to this audience.</p></div>
@@ -122,6 +125,11 @@ export default function Show({ workspace, segment, members, availablePeople, fil
                     <section className={panelClass}>
                         <h2 className="font-semibold">Details</h2>
                         <dl className="mt-4 space-y-3 text-sm"><Detail label="Type" value={TYPE_LABELS[segment.type]} /><Detail label="Public ID" value={segment.public_id} mono /><Detail label="Broadcasts" value={segment.broadcasts_count} /><Detail label="Created" value={formatDate(segment.created_at)} />{segment.event && <Detail label="Trigger event" value={segment.event.name} />}</dl>
+                        <div className="mt-5 flex flex-col gap-2">
+                            <Link href={engagePath(`broadcasts?segment=${segment.id}`)} className={`${buttonClass} text-center`}>Create broadcast to this segment</Link>
+                            <a href={engagePath(`segments/${segment.id}/export`)} className={`${secondaryButtonClass} text-center`}>Export members as CSV</a>
+                            {!segment.protected && <button type="button" className={secondaryButtonClass} onClick={() => router.post(engagePath(`segments/${segment.id}/duplicate`))}>Duplicate segment</button>}
+                        </div>
                     </section>
 
                     {!segment.protected && (
@@ -135,6 +143,36 @@ export default function Show({ workspace, segment, members, availablePeople, fil
                 </aside>
             </div>
         </Layout>
+    );
+}
+
+function ImportPanel({ segment }) {
+    const fileInput = useRef(null);
+    const form = useForm({ file: null, create_missing: false });
+
+    const submit = (event) => {
+        event.preventDefault();
+        form.post(engagePath(`segments/${segment.id}/import`), {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                form.reset();
+                if (fileInput.current) fileInput.current.value = '';
+            },
+        });
+    };
+
+    return (
+        <section className={panelClass}>
+            <h2 className="font-semibold">Import from CSV</h2>
+            <p className="mt-1 text-sm text-slate-500">Upload a CSV with an <code className="text-xs">external_id</code> and/or <code className="text-xs">email</code> header. Rows match existing profiles; up to 5000 rows per file.</p>
+            <form onSubmit={submit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input ref={fileInput} type="file" accept=".csv,text/csv" aria-label="CSV file" className="text-sm text-slate-400 file:mr-3 file:rounded-lg file:border file:border-white/10 file:bg-slate-900 file:px-3 file:py-1.5 file:text-sm file:text-slate-200" onChange={(e) => form.setData('file', e.target.files[0] ?? null)} />
+                <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" className="size-4 accent-violet-400" checked={form.data.create_missing} onChange={(e) => form.setData('create_missing', e.target.checked)} />Create missing people</label>
+                <button className={buttonClass} disabled={form.processing || !form.data.file}>{form.processing ? 'Importing…' : 'Import'}</button>
+            </form>
+            <FieldError message={form.errors.file} />
+        </section>
     );
 }
 

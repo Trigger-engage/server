@@ -30,7 +30,7 @@ class ChannelController extends Controller
         $validated = $request->validate([
             'type' => ['required', 'in:email,sms,push'],
             'name' => ['required', 'string', 'max:150'],
-            'driver' => ['required', 'in:log,smtp,termii,onesignal'],
+            'driver' => ['required', 'in:log,smtp,termii,onesignal,expo'],
             'is_default' => ['boolean'],
             'host' => ['required_if:driver,smtp', 'nullable', 'string', 'max:255'],
             'port' => ['required_if:driver,smtp', 'nullable', 'integer', 'between:1,65535'],
@@ -44,12 +44,17 @@ class ChannelController extends Controller
             'route' => ['nullable', 'in:dnd,generic'],
             'app_id' => ['nullable', 'string', 'max:150'],
             'webhook_token' => ['nullable', 'string', 'min:24', 'max:500'],
+            'access_token' => ['nullable', 'string', 'max:500'],
+            'priority' => ['nullable', 'in:default,normal,high'],
+            'sound' => ['nullable', 'string', 'max:100'],
+            'android_channel_id' => ['nullable', 'string', 'max:150'],
         ]);
         $workspace = $request->attributes->get('workspace');
 
         abort_if($validated['driver'] === 'smtp' && $validated['type'] !== 'email', 422);
         abort_if($validated['driver'] === 'termii' && $validated['type'] !== 'sms', 422);
         abort_if($validated['driver'] === 'onesignal' && $validated['type'] !== 'push', 422);
+        abort_if($validated['driver'] === 'expo' && $validated['type'] !== 'push', 422);
 
         DB::transaction(function () use ($workspace, $validated): void {
             if ($validated['is_default'] ?? false) {
@@ -75,7 +80,7 @@ class ChannelController extends Controller
     public function test(Request $request, ChannelConnectionTester $tester): RedirectResponse
     {
         $validated = $request->validate([
-            'driver' => ['required', 'in:log,smtp,termii,onesignal'],
+            'driver' => ['required', 'in:log,smtp,termii,onesignal,expo'],
             'host' => ['required_if:driver,smtp', 'nullable', 'string', 'max:255'],
             'port' => ['required_if:driver,smtp', 'nullable', 'integer', 'between:1,65535'],
             'username' => ['nullable', 'string', 'max:255'],
@@ -88,6 +93,10 @@ class ChannelController extends Controller
             'route' => ['nullable', 'in:dnd,generic'],
             'app_id' => ['nullable', 'string', 'max:150'],
             'webhook_token' => ['nullable', 'string', 'min:24', 'max:500'],
+            'access_token' => ['nullable', 'string', 'max:500'],
+            'priority' => ['nullable', 'in:default,normal,high'],
+            'sound' => ['nullable', 'string', 'max:100'],
+            'android_channel_id' => ['nullable', 'string', 'max:150'],
         ]);
 
         $result = $tester->test($validated['driver'], $this->credentialsFor($validated['driver'], $validated) ?? []);
@@ -122,6 +131,15 @@ class ChannelController extends Controller
                 'app_id' => $validated['app_id'] ?? null,
                 'api_key' => $validated['api_key'] ?? null,
                 'webhook_token' => $validated['webhook_token'] ?? null,
+            ],
+            // Expo needs no project identifier — the push token itself names
+            // the project. The access token is only required when the Expo
+            // project enforces one.
+            'expo' => [
+                'access_token' => $validated['access_token'] ?? null,
+                'priority' => $validated['priority'] ?? 'high',
+                'sound' => $validated['sound'] ?? 'default',
+                'android_channel_id' => $validated['android_channel_id'] ?? null,
             ],
             default => null,
         };

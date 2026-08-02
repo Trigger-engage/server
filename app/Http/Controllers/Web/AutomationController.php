@@ -15,6 +15,7 @@ use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Event;
 use TriggerEngage\Server\Models\RunGoalSubscription;
 use TriggerEngage\Server\Models\RunStep;
+use TriggerEngage\Server\Models\Segment;
 use TriggerEngage\Server\Models\Template;
 
 class AutomationController extends Controller
@@ -80,6 +81,8 @@ class AutomationController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'type', 'name', 'driver', 'is_default']),
             'events' => $workspace->events()->orderBy('name')->get(['id', 'name']),
+            'segments' => $workspace->segments()->orderBy('name')->get(['id', 'name', 'type']),
+            'triggerFilters' => $this->editableTriggerFilters($automation),
         ]);
     }
 
@@ -90,7 +93,13 @@ class AutomationController extends Controller
 
         $validated = $request->validate([
             'steps' => ['present', 'array', 'max:100'],
-            'steps.*.type' => ['required', Rule::in(['delay', 'wait_for_event', 'send_email', 'send_sms', 'send_push', 'split'])],
+            'steps.*.type' => ['required', Rule::in(['delay', 'wait_for_event', 'send_email', 'send_sms', 'send_push', 'split', 'segment'])],
+            'steps.*.segment_id' => [
+                'required_if:steps.*.type,segment',
+                'nullable',
+                Rule::exists('segments', 'id')->where('workspace_id', $workspace->id),
+            ],
+            'steps.*.in' => ['nullable', 'boolean'],
             'steps.*.variants' => ['required_if:steps.*.type,split', 'array', 'min:2', 'max:4'],
             'steps.*.variants.*.key' => ['required_with:steps.*.variants', 'string', 'max:20'],
             'steps.*.variants.*.weight' => ['nullable', 'integer', 'between:1,100'],
@@ -132,9 +141,18 @@ class AutomationController extends Controller
             'goal.incoming_field' => ['exclude_unless:goal.enabled,true', 'nullable', 'string', 'max:150'],
             'goal.trigger_field' => ['exclude_unless:goal.enabled,true', 'nullable', 'string', 'max:150'],
             'goal.match_operator' => ['exclude_unless:goal.enabled,true', 'nullable', Rule::in(['equals', 'not_equals'])],
+            'trigger_filters' => ['nullable', 'array', 'max:5'],
+            'trigger_filters.*.field' => ['required', 'string', 'max:150'],
+            'trigger_filters.*.operator' => ['nullable', Rule::in(['equals', 'not_equals', 'contains', 'exists', 'not_exists', 'gt', 'lt'])],
+            'trigger_filters.*.value' => ['nullable'],
         ]);
 
-        $graph = $this->buildGraph($workspace->id, $validated['steps'], $validated['goal'] ?? null);
+        $graph = $this->buildGraph(
+            $workspace->id,
+            $validated['steps'],
+            $validated['goal'] ?? null,
+            $validated['trigger_filters'] ?? []
+        );
         $automation->publish($graph);
 
         return back()->with('success', 'Automation published as a new immutable version.');
@@ -245,10 +263,36 @@ class AutomationController extends Controller
             ];
     }
 
-    /** @return array{nodes: array<int, array>, edges: array<int, array>, goals: array<int, array>} */
-    protected function buildGraph(int $workspaceId, array $steps, ?array $goal = null): array
+    /** Trigger-node payload filters as the edit form shows them. */
+    protected function editableTriggerFilters(Automation $automation): array
     {
-        $nodes = [['id' => 'trigger', 'type' => 'trigger', 'config' => []]];
+        $trigger = collect($automation->activeVersion?->graph['nodes'] ?? [])
+            ->firstWhere('type', 'trigger');
+
+        return collect($trigger['config']['filters'] ?? [])
+            ->map(fn (array $filter) => [
+                'field' => (string) ($filter['field'] ?? ''),
+                'operator' => $filter['operator'] ?? 'equals',
+                'value' => $filter['value'] ?? '',
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** @return array{nodes: array<int, array>, edges: array<int, array>, goals: array<int, array>} */
+    protected function buildGraph(int $workspaceId, array $steps, ?array $goal = null, array $triggerFilters = []): array
+    {
+        $filters = collect($triggerFilters)
+            ->filter(fn ($filter) => is_array($filter) && filled($filter['field'] ?? null))
+            ->map(fn (array $filter) => [
+                'field' => trim((string) $filter['field']),
+                'operator' => $filter['operator'] ?? 'equals',
+                'value' => $filter['value'] ?? null,
+            ])
+            ->values()
+            ->all();
+
+        $nodes = [['id' => 'trigger', 'type' => 'trigger', 'config' => $filters === [] ? [] : ['filters' => $filters]]];
         $visibleNodes = [];
         // visibleId => array of nodes generated for it (event-wait timeout sends,
         // A/B variant send nodes). They execute but never appear as edit steps.
@@ -260,6 +304,22 @@ class AutomationController extends Controller
             if ($step['type'] === 'split') {
                 [$config, $variantNodes] = $this->splitConfig($workspaceId, $id, $step);
                 $generatedNodes[$id] = $variantNodes;
+            } elseif ($step['type'] === 'segment') {
+                $segment = Segment::query()
+                    ->where('workspace_id', $workspaceId)
+                    ->find($step['segment_id'] ?? null);
+
+                if (! $segment) {
+                    throw ValidationException::withMessages([
+                        'steps' => 'Every segment filter must select a segment from this workspace.',
+                    ]);
+                }
+
+                $config = [
+                    'segment_id' => $segment->id,
+                    'segment_name' => $segment->name,
+                    'in' => ($step['in'] ?? true) !== false,
+                ];
             } elseif ($step['type'] === 'delay') {
                 $config = filled($step['until_time'] ?? null)
                     ? ['until_time' => $step['until_time']]
@@ -362,6 +422,14 @@ class AutomationController extends Controller
                     $edges[] = ['from' => $node['id'], 'to' => $variantNodeId, 'branch' => $variant['key']];
                     $edges[] = ['from' => $variantNodeId, 'to' => $nextId];
                 }
+
+                continue;
+            }
+
+            if ($node['type'] === 'segment') {
+                // A filter: matching people continue, everyone else exits.
+                $edges[] = ['from' => $node['id'], 'to' => $nextId, 'branch' => 'true'];
+                $edges[] = ['from' => $node['id'], 'to' => 'exit', 'branch' => 'false'];
 
                 continue;
             }

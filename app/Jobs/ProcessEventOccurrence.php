@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
+use TriggerEngage\Server\Engine\ConditionEvaluator;
 use TriggerEngage\Server\Engine\EventWaitManager;
 use TriggerEngage\Server\Engine\GoalManager;
 use TriggerEngage\Server\Engine\Graph;
@@ -82,6 +83,10 @@ class ProcessEventOccurrence implements ShouldQueue
                     return [];
                 }
 
+                if (! $this->passesTriggerFilters($trigger, $occurrence)) {
+                    return [];
+                }
+
                 $run = AutomationRun::query()->firstOrCreate(
                     [
                         'automation_id' => $automation->id,
@@ -110,6 +115,46 @@ class ProcessEventOccurrence implements ShouldQueue
                 $goals->catchUp($subscriptionId);
             }
         }
+    }
+
+    /**
+     * Optional payload filters on the trigger node, e.g. only start a
+     * segment_entered journey for one specific segment. Every filter must pass.
+     */
+    protected function passesTriggerFilters(array $trigger, EventOccurrence $occurrence): bool
+    {
+        $filters = $trigger['config']['filters'] ?? [];
+
+        if (! is_array($filters) || $filters === []) {
+            return true;
+        }
+
+        $evaluator = app(ConditionEvaluator::class);
+        $context = ['event' => $occurrence->payload ?? []];
+
+        foreach ($filters as $filter) {
+            if (! is_array($filter)) {
+                continue;
+            }
+
+            $field = (string) ($filter['field'] ?? '');
+
+            if ($field === '') {
+                continue;
+            }
+
+            $passes = $evaluator->passes([
+                'field' => str_starts_with($field, 'event.') ? $field : 'event.'.$field,
+                'operator' => $filter['operator'] ?? 'equals',
+                'value' => $filter['value'] ?? null,
+            ], $context);
+
+            if (! $passes) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected function allowedByReentryPolicy(Automation $automation, EventOccurrence $occurrence): bool

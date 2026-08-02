@@ -39,6 +39,19 @@ timestamp for delays, and a `context` blob. Each node execution is recorded as a
 
 The event that starts the journey. Every automation has exactly one.
 
+Optional **trigger filters** narrow which occurrences start a run: every filter is a
+`{field, operator, value}` predicate over the event payload, and all must pass. The classic use
+is scoping a `segment_entered` journey to one segment:
+
+```jsonc
+{"id": "trigger", "type": "trigger", "config": {"filters": [
+  {"field": "segment_public_id", "operator": "equals", "value": "seg_01hxyz..."}
+]}}
+```
+
+Operators: `equals`, `not_equals`, `contains`, `exists`, `not_exists`, `gt`, `lt`. In the
+builder these live in the **Trigger filters** sidebar panel.
+
 ### `delay`
 
 Pauses the run. Two forms:
@@ -74,6 +87,19 @@ outgoing edges, selected by branch `"true"` / `"false"`.
 ```jsonc
 {"type": "branch", "config": {"field": "person.plan", "operator": "equals", "value": "pro"}}
 ```
+
+### `segment` (segment filter)
+
+Checks the person's **materialized** membership of a segment and takes the `"true"` /
+`"false"` edge depending on whether it matches the node's expectation:
+
+```jsonc
+{"id": "gate", "type": "segment", "config": {"segment_id": 9, "in": true}}
+```
+
+`in: true` passes members, `in: false` passes non-members. The builder's **Segment filter**
+step compiles this with `"true"` continuing to the next step and `"false"` going to exit, i.e.
+"continue only when the person [is|is not] in the segment."
 
 ### `wait_for_event`
 

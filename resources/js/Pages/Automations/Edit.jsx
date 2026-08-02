@@ -12,10 +12,11 @@ const freshSend = (kind, templates, channels) => {
 };
 const freshVariant = (key, templates, channels, type = 'email') => ({ key, weight: 50, type, template_id: templates.find((item) => item.channel === type)?.id ?? '', channel_id: channels.find((item) => item.type === type)?.id ?? '', retry_attempts: 3, on_failure: 'continue' });
 const freshSplit = (templates, channels) => ({ type: 'split', variants: [freshVariant('A', templates, channels), freshVariant('B', templates, channels)] });
+const freshSegmentFilter = (segments) => ({ type: 'segment', segment_id: segments[0]?.id ?? '', in: true });
 const canSend = (type, templates, channels) => templates.some((item) => item.channel === type) && channels.some((item) => item.type === type);
 
-export default function EditAutomation({ workspace, automation, templates, channels, events, abTests = [] }) {
-    const form = useForm({ steps: automation.steps, goal: automation.goal });
+export default function EditAutomation({ workspace, automation, templates, channels, events, segments = [], triggerFilters = [], abTests = [] }) {
+    const form = useForm({ steps: automation.steps, goal: automation.goal, trigger_filters: triggerFilters });
 
     const addStep = (step) => form.setData('steps', [...form.data.steps, step]);
     const updateStep = (index, key, value) => form.setData('steps', form.data.steps.map((step, position) => position === index ? { ...step, [key]: value } : step));
@@ -67,8 +68,9 @@ export default function EditAutomation({ workspace, automation, templates, chann
                     {form.data.steps.map((step, index) => (
                         <div key={index}>
                             <div className="rounded-xl border border-white/10 bg-slate-900/80 p-5">
-                                <div className="mb-4 flex items-center justify-between"><div><span className="mr-2 text-xs text-slate-500">{index + 1}</span><span className="font-semibold">{step.type === 'split' ? 'A/B test' : step.type.replaceAll('_', ' ')}</span></div><div className="flex gap-1"><TinyButton onClick={() => moveStep(index, -1)} disabled={index === 0}>↑</TinyButton><TinyButton onClick={() => moveStep(index, 1)} disabled={index === form.data.steps.length - 1}>↓</TinyButton><TinyButton onClick={() => removeStep(index)}>Remove</TinyButton></div></div>
+                                <div className="mb-4 flex items-center justify-between"><div><span className="mr-2 text-xs text-slate-500">{index + 1}</span><span className="font-semibold">{step.type === 'split' ? 'A/B test' : step.type === 'segment' ? 'segment filter' : step.type.replaceAll('_', ' ')}</span></div><div className="flex gap-1"><TinyButton onClick={() => moveStep(index, -1)} disabled={index === 0}>↑</TinyButton><TinyButton onClick={() => moveStep(index, 1)} disabled={index === form.data.steps.length - 1}>↓</TinyButton><TinyButton onClick={() => removeStep(index)}>Remove</TinyButton></div></div>
                                 {step.type === 'delay' && <DelayStep step={step} update={(key, value) => updateStep(index, key, value)} />}
+                                {step.type === 'segment' && <SegmentStep step={step} update={(key, value) => updateStep(index, key, value)} segments={segments} />}
                                 {step.type === 'wait_for_event' && <WaitForEventStep step={step} update={(key, value) => updateStep(index, key, value)} events={events} templates={templates} channels={channels} />}
                                 {step.type === 'split' && <SplitStep step={step} update={(key, value) => updateStep(index, key, value)} templates={templates} channels={channels} />}
                                 {step.type.startsWith('send_') && <SendStep step={step} update={(key, value) => updateStep(index, key, value)} templates={templates} channels={channels} />}
@@ -81,8 +83,9 @@ export default function EditAutomation({ workspace, automation, templates, chann
 
                 <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
                     {abTests.length > 0 && <AbResults abTests={abTests} />}
+                    <TriggerFilters filters={form.data.trigger_filters} update={(filters) => form.setData('trigger_filters', filters)} error={form.errors.trigger_filters || form.errors['trigger_filters.0.field']} />
                     <GoalSettings goal={form.data.goal} events={events} update={updateGoal} toggle={toggleGoal} error={form.errors.goal || form.errors['goal.event_id']} />
-                    <section className={panelClass}><h2 className="font-semibold">Add a step</h2><div className="mt-4 grid gap-2"><button type="button" className={secondaryButtonClass} onClick={() => addStep(freshDelay())}>+ Delay</button><button type="button" className={secondaryButtonClass} disabled={events.length === 0} onClick={() => addStep(freshWait(events))}>+ Wait for event</button>{['email', 'sms', 'push'].map((type) => <button key={type} type="button" className={secondaryButtonClass} disabled={!canSend(type, templates, channels)} onClick={() => addStep(freshSend(`send_${type}`, templates, channels))}>+ Send {type}</button>)}<button type="button" className={secondaryButtonClass} disabled={!['email', 'sms', 'push'].some((type) => canSend(type, templates, channels))} onClick={() => addStep(freshSplit(templates, channels))}>+ A/B test</button></div>{events.length === 0 && <p className="mt-3 text-xs text-amber-200">Create the event you want to wait for first.</p>}</section>
+                    <section className={panelClass}><h2 className="font-semibold">Add a step</h2><div className="mt-4 grid gap-2"><button type="button" className={secondaryButtonClass} onClick={() => addStep(freshDelay())}>+ Delay</button><button type="button" className={secondaryButtonClass} disabled={events.length === 0} onClick={() => addStep(freshWait(events))}>+ Wait for event</button>{['email', 'sms', 'push'].map((type) => <button key={type} type="button" className={secondaryButtonClass} disabled={!canSend(type, templates, channels)} onClick={() => addStep(freshSend(`send_${type}`, templates, channels))}>+ Send {type}</button>)}<button type="button" className={secondaryButtonClass} disabled={!['email', 'sms', 'push'].some((type) => canSend(type, templates, channels))} onClick={() => addStep(freshSplit(templates, channels))}>+ A/B test</button><button type="button" className={secondaryButtonClass} disabled={segments.length === 0} onClick={() => addStep(freshSegmentFilter(segments))}>+ Segment filter</button></div>{events.length === 0 && <p className="mt-3 text-xs text-amber-200">Create the event you want to wait for first.</p>}</section>
                     <section className={panelClass}><h2 className="font-semibold">Publish</h2><p className="mt-2 text-xs leading-5 text-slate-500">Publishing creates an immutable version. Existing runs remain pinned to their original version.</p><FieldError message={form.errors.steps} /><button className={`${buttonClass} mt-4 w-full`} disabled={form.processing}>{form.processing ? 'Publishing…' : 'Publish new version'}</button>{automation.published_at && <p className="mt-3 text-center text-xs text-slate-600">Last published {new Date(automation.published_at).toLocaleString()}</p>}</section>
                 </aside>
             </form>
@@ -92,6 +95,48 @@ export default function EditAutomation({ workspace, automation, templates, chann
 
 function DelayStep({ step, update }) {
     return <div><div className="grid grid-cols-3 gap-3">{['days', 'hours', 'minutes'].map((unit) => <label key={unit} className="text-xs uppercase tracking-wider text-slate-500">{unit}<input type="number" min="0" className={inputClass} value={step[unit] ?? 0} onChange={(e) => update(unit, Number(e.target.value))} /></label>)}</div><div className="my-3 flex items-center gap-3 text-xs text-slate-600"><span className="h-px flex-1 bg-white/10" />or wait until local time<span className="h-px flex-1 bg-white/10" /></div><input type="time" className={inputClass} value={step.until_time ?? ''} onChange={(e) => update('until_time', e.target.value)} /></div>;
+}
+
+function SegmentStep({ step, update, segments }) {
+    return <div className="space-y-3">
+        <p className="text-xs leading-5 text-slate-500">Continue only when the person's current segment membership matches. Everyone else exits the journey here.</p>
+        <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-400">Person</span>
+            <select aria-label="In or not in" className="rounded-lg border border-white/10 bg-slate-900 px-2 py-1.5 text-sm" value={step.in === false ? 'not_in' : 'in'} onChange={(e) => update('in', e.target.value === 'in')}>
+                <option value="in">is in</option><option value="not_in">is not in</option>
+            </select>
+            <select aria-label="Segment" className="rounded-lg border border-white/10 bg-slate-900 px-2 py-1.5 text-sm" value={step.segment_id ?? ''} onChange={(e) => update('segment_id', Number(e.target.value))}>
+                {segments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}
+            </select>
+        </div>
+    </div>;
+}
+
+function TriggerFilters({ filters, update, error }) {
+    const rows = filters ?? [];
+    const setRow = (index, patch) => update(rows.map((row, position) => position === index ? { ...row, ...patch } : row));
+    const valueLess = (operator) => ['exists', 'not_exists'].includes(operator);
+
+    return <section className={panelClass}>
+        <h2 className="font-semibold">Trigger filters</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500">Only start a run when the trigger event's payload matches. Useful for segment_entered journeys scoped to one segment.</p>
+        <div className="mt-3 space-y-2">
+            {rows.map((row, index) => (
+                <div key={index} className="space-y-2 rounded-lg border border-white/10 bg-slate-950/50 p-3">
+                    <input className={`${inputClass} mt-0`} placeholder="payload field, e.g. segment_public_id" value={row.field ?? ''} onChange={(e) => setRow(index, { field: e.target.value })} />
+                    <div className="flex gap-2">
+                        <select aria-label="Filter operator" className={`${inputClass} mt-0`} value={row.operator ?? 'equals'} onChange={(e) => setRow(index, { operator: e.target.value })}>
+                            {['equals', 'not_equals', 'contains', 'exists', 'not_exists', 'gt', 'lt'].map((op) => <option key={op} value={op}>{op.replaceAll('_', ' ')}</option>)}
+                        </select>
+                        {!valueLess(row.operator ?? 'equals') && <input className={`${inputClass} mt-0`} placeholder="value" value={row.value ?? ''} onChange={(e) => setRow(index, { value: e.target.value })} />}
+                        <button type="button" className="rounded-md border border-white/10 px-2 text-xs text-slate-400 hover:bg-white/10" onClick={() => update(rows.filter((_, position) => position !== index))}>×</button>
+                    </div>
+                </div>
+            ))}
+        </div>
+        <button type="button" className={`${secondaryButtonClass} mt-3`} disabled={rows.length >= 5} onClick={() => update([...rows, { field: '', operator: 'equals', value: '' }])}>+ Add filter</button>
+        <FieldError message={error} />
+    </section>;
 }
 
 function GoalSettings({ goal, events, update, toggle, error }) {
@@ -181,8 +226,8 @@ function buildFlow(steps, triggerName, events, goal) {
 
     steps.forEach((step, index) => {
         const eventName = events.find((event) => Number(event.id) === Number(step.event_id))?.name;
-        const label = step.type === 'wait_for_event' ? `${index + 1}. Wait · ${eventName ?? 'event'}` : step.type === 'split' ? `${index + 1}. A/B test` : `${index + 1}. ${step.type.replaceAll('_', ' ')}`;
-        const style = step.type === 'wait_for_event' ? { ...mainStyle, border: '1px solid #38bdf8', background: '#082f49' } : step.type === 'split' ? { ...mainStyle, border: '1px solid #34d399', background: '#053225' } : mainStyle;
+        const label = step.type === 'wait_for_event' ? `${index + 1}. Wait · ${eventName ?? 'event'}` : step.type === 'split' ? `${index + 1}. A/B test` : step.type === 'segment' ? `${index + 1}. ${step.in === false ? 'Not in' : 'In'} segment?` : `${index + 1}. ${step.type.replaceAll('_', ' ')}`;
+        const style = step.type === 'wait_for_event' ? { ...mainStyle, border: '1px solid #38bdf8', background: '#082f49' } : step.type === 'split' ? { ...mainStyle, border: '1px solid #34d399', background: '#053225' } : step.type === 'segment' ? { ...mainStyle, border: '1px solid #a78bfa', background: '#2e1065' } : mainStyle;
         nodes.push({ id: `step-${index}`, position: { x: 60, y }, data: { label }, style });
         if (step.type === 'split') {
             (step.variants ?? []).forEach((variant, vIndex) => {
@@ -211,6 +256,12 @@ function buildFlow(steps, triggerName, events, goal) {
                 edges.push({ id: `${source}-${variant.key}`, source, target: variantNode, label: variant.key, animated: true, style: { stroke: '#34d399' }, labelStyle: { fill: '#6ee7b7' } });
                 edges.push({ id: `${variantNode}-next`, source: variantNode, target: next, style: { stroke: '#34d399' } });
             });
+            return;
+        }
+
+        if (step.type === 'segment') {
+            edges.push({ id: `${source}-yes`, source, target: next, label: 'yes', animated: true, style: { stroke: '#a78bfa' }, labelStyle: { fill: '#c4b5fd' } });
+            edges.push({ id: `${source}-no`, source, target: 'exit', label: 'no', style: { stroke: '#f59e0b' }, labelStyle: { fill: '#fbbf24' } });
             return;
         }
 

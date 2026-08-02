@@ -30,8 +30,13 @@ class BroadcastController extends Controller
     {
         $workspace = $request->attributes->get('workspace');
 
+        // "Create broadcast" links on segment pages land here with ?segment=<id>
+        // so the form opens with that audience already selected.
+        $preselected = $workspace->segments()->whereKey($request->integer('segment'))->value('id');
+
         return Inertia::render('Broadcasts/Index', [
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
+            'preselectedSegmentId' => $preselected,
             'segments' => $workspace->segments()->withCount('people')->orderBy('name')->get(['id', 'public_id', 'name', 'type']),
             'templates' => $workspace->templates()->orderBy('name')->get(['id', 'name', 'channel', 'subject']),
             'channels' => $workspace->channels()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'type', 'driver']),

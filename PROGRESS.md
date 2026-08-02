@@ -162,3 +162,59 @@ platform. Full suite 87 green (server) + 9 (SDK).
   inline-SVG charts: a sent-vs-delivered area trend with hover crosshair, runs/day and
   events/day trends, a delivery funnel (sent → delivered → opened → clicked), and a per-channel
   delivered/failed breakdown. `AnalyticsController` is fully workspace-scoped.
+
+### Mytherapist.ng lifecycle workspace seeder
+- `database/seeders/MytherapistLifecycleSeeder.php` (`php artisan db:seed --class=MytherapistLifecycleSeeder`)
+  seeds the production-shaped "Mytherapist.ng" workspace (Africa/Lagos): the full 38-event
+  lifecycle taxonomy, nine templates with the approved copy from the engagement/lifecycle
+  messaging recommendation, log-email + OneSignal channels (credentials to be filled in
+  Channels before launch), and six active journeys — new-user activation, interrupted
+  booking, payment recovery, first-session continuity, therapist readiness, and Wellness
+  Step reminders (goal correlated per `wellness_step_id`).
+- Design note encoded in the activation journey: event waits only match occurrences recorded
+  after the wait registers, so the timed_out path re-checks the synced
+  `person.email_verified` attribute before sending the verification nudge.
+- Prints the workspace id + API key for the backend `TRIGGER_ENGAGE_*` env block; re-running
+  is guarded (delete the workspace to re-seed).
+
+### Segment management parity (v0.6.0)
+- Rule engine: nested AND/OR groups (3 levels, recursive `SegmentRuleValidator` shared by
+  store/update/preview), event count comparisons (`count_operator` gte/lte/eq + `count`), and
+  segment-membership conditions evaluated against materialized `segment_person` rows (self-
+  reference rejected; chained rule segments converge via bounded multi-pass person sync).
+- Management: audience preview endpoint (count + sample, nothing saved), duplicate (rule copies
+  recompute, manual copies snapshot members), streamed CSV export, and CSV import into manual
+  segments (external_id/email matching, optional create-missing, 5000-row cap, source `import`).
+- Automations: confirmed membership changes emit `segment_entered`/`segment_left` occurrences
+  (All people excluded by design — creation noise), trigger nodes take optional payload
+  `filters` checked by the matcher, and a new `segment` node branches on membership; the
+  builder gained Segment filter steps + a Trigger filters panel, and the segments builder
+  gained groups/counts/segment rows + live preview.
+- 17 new feature tests (SegmentManagementTest, SegmentAutomationTest); full suite 109 green.
+  Gotcha fixed along the way: a stale `bootstrap/cache/config.php` leaks the dev env into
+  phpunit (CSRF 419s everywhere + RefreshDatabase wiping the dev sqlite) — `php artisan
+  config:clear` before testing.
+
+### Expo push channel (v0.6.0)
+- Second push driver alongside OneSignal, with a different addressing model: OneSignal is
+  given a user *alias* and owns the device tokens; Expo is given the *tokens*, so profiles
+  carry them on `expo_push_tokens` (list) or `expo_push_token` (string). A send fans out to
+  every token in one `/--/api/v2/push/send` call. Non-Expo values are filtered out so a stray
+  FCM token cannot poison the batch, and a profile with no usable token skips the send
+  entirely (no message row), matching how SmsChannel treats a missing phone.
+- `PushChannel` refactored from hardcoded-OneSignal into driver dispatch; the OneSignal path
+  and its webhook are untouched. Credentials: optional `access_token` (only needed when the
+  Expo project enforces one), plus `priority`, `sound`, and `android_channel_id`.
+- Delivery feedback is *pulled*, not pushed — Expo publishes no webhook. A send stores its
+  per-token ticket ids in the new `messages.pending_receipts` column; `PollExpoPushReceipts`
+  (queued per workspace from `engage:tick`) drains them via `/--/api/v2/push/getReceipts` and
+  settles each message. Expo only retains receipts ~24h, so older rows are abandoned rather
+  than polled forever.
+- Partial fan-out failures still count as `sent` — one dead tablet must not hide a delivered
+  phone; the rejections land on `message.error`. Only a total rejection fails the message.
+- `DeviceNotRegistered` (at ticket or receipt time) prunes that token from the profile rather
+  than writing a suppression: suppressions are a permanent channel-wide gate, and a reinstall
+  issues a fresh token, so suppressing would silently mute a reachable person forever.
+- Channel connection test probes with an empty receipt lookup — free, sends nothing, and still
+  exercises the access token when enhanced security is on.
+- 10 new feature tests (`ExpoPushTest`); full suite 120 green.

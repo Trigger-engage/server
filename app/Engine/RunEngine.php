@@ -173,6 +173,38 @@ class RunEngine
 
                     break;
 
+                case 'segment':
+                    // Membership check against the materialized segment_person
+                    // rows — true when the person's membership matches the
+                    // node's expectation ("in" or "not in").
+                    $wantIn = ($node['config']['in'] ?? true) !== false;
+                    $isMember = DB::table('segment_person')
+                        ->where('segment_id', (int) ($node['config']['segment_id'] ?? 0))
+                        ->where('person_id', $run->person_id)
+                        ->exists();
+                    $result = $isMember === $wantIn;
+
+                    $this->recordStep($run, $node, 'completed', [
+                        'member' => $isMember,
+                        'result' => $result,
+                    ]);
+
+                    $updated = AutomationRun::query()
+                        ->whereKey($run->id)
+                        ->where('status', AutomationRun::STATUS_RUNNING)
+                        ->update([
+                            'current_node_id' => $node['id'],
+                            'context' => array_merge($run->context ?? [], [
+                                'branch:'.$node['id'] => $result ? 'true' : 'false',
+                            ]),
+                        ]);
+
+                    if (! $updated) {
+                        return;
+                    }
+
+                    break;
+
                 case 'split':
                     // Deterministic weighted assignment: the same person always
                     // lands on the same variant of the same node, so re-runs of

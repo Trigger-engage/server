@@ -6,7 +6,9 @@ use Illuminate\Console\Command;
 use TriggerEngage\Server\Engine\EventWaitManager;
 use TriggerEngage\Server\Engine\SegmentManager;
 use TriggerEngage\Server\Jobs\AdvanceAutomationRun;
+use TriggerEngage\Server\Jobs\PollExpoPushReceipts;
 use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Message;
 use TriggerEngage\Server\Models\RunEventWait;
 use TriggerEngage\Server\Models\RunGoalSubscription;
@@ -22,6 +24,7 @@ class EngageTick extends Command
     {
         $this->recoverStaleSendReservations();
         $this->cancelFinishedGoalSubscriptions();
+        $this->collectExpoPushReceipts();
 
         // Behavioural audiences whose conditions are time-bound (e.g. "inactive
         // for 14 days") drift purely as time passes, so sweep stale ones here.
@@ -95,6 +98,21 @@ class EngageTick extends Command
                     ]);
                 }
             });
+    }
+
+    /**
+     * Expo publishes no delivery webhook, so the terminal state of a push has
+     * to be pulled. Queue one poller per workspace that actually has an Expo
+     * channel connected.
+     */
+    protected function collectExpoPushReceipts(): void
+    {
+        Channel::query()
+            ->where('type', 'push')
+            ->where('driver', 'expo')
+            ->distinct()
+            ->pluck('workspace_id')
+            ->each(fn ($workspaceId) => PollExpoPushReceipts::dispatch((int) $workspaceId));
     }
 
     protected function cancelFinishedGoalSubscriptions(): void
