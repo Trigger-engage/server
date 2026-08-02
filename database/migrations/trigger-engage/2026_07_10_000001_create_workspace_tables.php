@@ -16,7 +16,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('api_keys', function (Blueprint $table) {
+        Schema::create('engage_api_keys', function (Blueprint $table) {
             $table->id();
             $table->foreignId('workspace_id')->constrained()->cascadeOnDelete();
             $table->string('name');
@@ -29,7 +29,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('api_keys');
+        Schema::dropIfExists('engage_api_keys');
         Schema::dropIfExists('workspaces');
     }
 };

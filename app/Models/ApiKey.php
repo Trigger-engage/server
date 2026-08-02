@@ -8,6 +8,12 @@ use Illuminate\Support\Str;
 
 class ApiKey extends Model
 {
+    /**
+     * Explicit: hosts that embed this package often already own an `api_keys`
+     * table (Laravel's convention would silently alias theirs).
+     */
+    protected $table = 'engage_api_keys';
+
     protected $guarded = [];
 
     protected $casts = ['last_used_at' => 'datetime'];
