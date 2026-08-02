@@ -2,14 +2,18 @@
 
 namespace Tests\Feature;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Date;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
 use TriggerEngage\Server\Contracts\WorkspaceResolver;
 use TriggerEngage\Server\Http\Middleware\AuthorizeDashboard;
+use TriggerEngage\Server\Models\AutomationRun;
 use TriggerEngage\Server\Models\EventOccurrence;
 use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Models\Segment;
@@ -78,5 +82,51 @@ class EmbeddedPackageTest extends TestCase
 
         $response = $middleware->handle(Request::create('/trigger-engage'), fn () => response('ok'));
         $this->assertSame('ok', $response->getContent());
+    }
+
+    /**
+     * A host may call Date::use(CarbonImmutable::class) — Mytherapist.ng does — which
+     * makes now() return a CarbonImmutable. Every relative delay is computed from
+     * now(), so a return type of Illuminate\Support\Carbon throws a TypeError there
+     * and every automation stalls on its first delay node, silently: the run stays
+     * "running" on the trigger and nothing is ever sent.
+     */
+    public function test_relative_delays_survive_a_host_that_uses_immutable_dates(): void
+    {
+        Date::use(CarbonImmutable::class);
+
+        try {
+            $this->travelTo(CarbonImmutable::parse('2026-08-02 15:00:00', 'UTC'));
+
+            [$workspace, $key] = $this->makeWorkspace();
+            $workspace->forceFill(['timezone' => 'UTC'])->save();
+
+            $this->makeAutomation($workspace, 'customer_sign_up', [
+                'nodes' => [
+                    ['id' => 'trigger', 'type' => 'trigger', 'config' => []],
+                    ['id' => 'wait', 'type' => 'delay', 'config' => ['minutes' => 30]],
+                    ['id' => 'done', 'type' => 'exit', 'config' => []],
+                ],
+                'edges' => [
+                    ['from' => 'trigger', 'to' => 'wait'],
+                    ['from' => 'wait', 'to' => 'done'],
+                ],
+            ]);
+
+            $headers = $this->authHeaders($workspace, $key);
+            $this->postJson('/api/v1/events', [
+                'name' => 'customer_sign_up',
+                'person_id' => 'user-42',
+            ], $headers)->assertAccepted();
+
+            $run = AutomationRun::query()->latest('id')->firstOrFail();
+
+            $this->assertSame(AutomationRun::STATUS_WAITING, $run->status);
+            $this->assertSame('wait', $run->current_node_id);
+            $this->assertNotNull($run->wake_at);
+            $this->assertSame('2026-08-02 15:30', $run->wake_at->format('Y-m-d H:i'));
+        } finally {
+            Date::use(Carbon::class);
+        }
     }
 }

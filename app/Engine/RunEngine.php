@@ -2,6 +2,7 @@
 
 namespace TriggerEngage\Server\Engine;
 
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use TriggerEngage\Server\Engine\Channels\EmailChannel;
@@ -54,6 +55,20 @@ class RunEngine
             ->whereKey($run->id)
             ->whereIn('status', [AutomationRun::STATUS_RUNNING, AutomationRun::STATUS_WAITING])
             ->update(['status' => AutomationRun::STATUS_RUNNING, 'wake_at' => null]);
+
+        // MySQL's rowCount() reports rows CHANGED, not rows matched — so claiming a
+        // run that is already {running, wake_at: null}, in the same second it was
+        // created, updates nothing and returns 0. (SQLite counts matched rows, which
+        // is why this only bites on MySQL.) A zero here is therefore ambiguous: it
+        // means either "another worker finished this run" — the case this guard is
+        // for — or "the claim was already ours". Re-read to tell them apart.
+        if (! $claimed) {
+            $claimed = AutomationRun::query()
+                ->whereKey($run->id)
+                ->where('status', AutomationRun::STATUS_RUNNING)
+                ->whereNull('wake_at')
+                ->exists();
+        }
 
         if (! $claimed) {
             return;
@@ -511,14 +526,19 @@ class RunEngine
         return (string) ($variants[array_key_last($variants)]['key'] ?? array_key_last($variants));
     }
 
-    protected function wakeAt(array $config, AutomationRun $run): Carbon
+    /**
+     * Returns CarbonInterface, not Carbon: an embedding host may have called
+     * Date::use(CarbonImmutable::class), which makes now() immutable — and the
+     * addDay() below a no-op unless its result is reassigned.
+     */
+    protected function wakeAt(array $config, AutomationRun $run): CarbonInterface
     {
         if (isset($config['until_time'])) {
             $timezone = $run->workspace->timezone ?? 'UTC';
             $target = Carbon::now($timezone)->setTimeFromTimeString($config['until_time']);
 
             if ($target->isPast()) {
-                $target->addDay();
+                $target = $target->addDay();
             }
 
             return $target->utc();
