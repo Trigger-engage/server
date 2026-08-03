@@ -88,6 +88,26 @@ export function FieldError({ message }) {
     return message ? <p className="mt-1 text-xs text-rose-300">{message}</p> : null;
 }
 
+// The one status pill. Covers broadcast lifecycle (draft/sending/completed),
+// recipient/message outcomes (queued/sending/sent/skipped/failed), and run
+// states — so "completed" cannot render green on one page and grey on another.
+const STATUS_BADGE_STYLES = {
+    completed: 'bg-emerald-400/10 text-emerald-300',
+    sent: 'bg-emerald-400/10 text-emerald-300',
+    active: 'bg-emerald-400/10 text-emerald-300',
+    draft: 'bg-slate-400/10 text-slate-300',
+    queued: 'bg-slate-400/10 text-slate-300',
+    skipped: 'bg-amber-400/10 text-amber-200',
+    sending: 'bg-amber-400/10 text-amber-200',
+    paused: 'bg-amber-400/10 text-amber-200',
+    failed: 'bg-rose-400/10 text-rose-300',
+    bounced: 'bg-rose-400/10 text-rose-300',
+};
+
+export function StatusBadge({ status }) {
+    return <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE_STYLES[status] ?? 'bg-slate-400/10 text-slate-300'}`}>{status}</span>;
+}
+
 export const inputClass = 'mt-1 w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-400/60 focus:ring-2 focus:ring-emerald-400/10';
 export const buttonClass = 'inline-flex items-center justify-center rounded-lg bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50';
 export const secondaryButtonClass = 'inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10 disabled:opacity-50';

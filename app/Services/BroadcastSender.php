@@ -29,8 +29,16 @@ class BroadcastSender
             return $locked->recipients()->pluck('id')->all();
         });
 
+        // On the sync queue a job that throws rethrows here after its failed()
+        // handler already recorded the failure — swallow and keep dispatching,
+        // or the first bad recipient strands every one after it as 'queued'
+        // and the broadcast never leaves 'sending'.
         foreach ($recipientIds as $id) {
-            SendBroadcastRecipient::dispatch($id);
+            try {
+                SendBroadcastRecipient::dispatch($id);
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return count($recipientIds);

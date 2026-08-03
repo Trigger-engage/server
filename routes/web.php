@@ -48,6 +48,8 @@ Route::post('/segments/{segment}/people/{person}', [SegmentController::class, 'a
 Route::delete('/segments/{segment}/people/{person}', [SegmentController::class, 'removePerson'])->name('segments.people.destroy');
 Route::get('/broadcasts', [BroadcastController::class, 'index'])->name('broadcasts.index');
 Route::post('/broadcasts', [BroadcastController::class, 'store'])->name('broadcasts.store');
+Route::get('/broadcasts/{broadcast}', [BroadcastController::class, 'show'])->name('broadcasts.show');
 Route::get('/broadcasts/{broadcast}/edit', [BroadcastController::class, 'edit'])->name('broadcasts.edit');
 Route::put('/broadcasts/{broadcast}', [BroadcastController::class, 'update'])->name('broadcasts.update');
 Route::post('/broadcasts/{broadcast}/send', [BroadcastController::class, 'send'])->name('broadcasts.send');
+Route::post('/broadcasts/{broadcast}/retry-failed', [BroadcastController::class, 'retryFailed'])->name('broadcasts.retry');

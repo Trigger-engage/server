@@ -1,12 +1,8 @@
 import { Link, router, useForm } from '@inertiajs/react';
-import Layout, { FieldError, buttonClass, panelClass, secondaryButtonClass } from '../../components/Layout';
+import Layout, { FieldError, StatusBadge, buttonClass, panelClass, secondaryButtonClass } from '../../components/Layout';
 import MessageComposer from '../../components/MessageComposer';
 import { engagePath } from '../../lib/engagePath';
-
-const statusStyles = {
-    completed: 'bg-emerald-400/10 text-emerald-300',
-    draft: 'bg-slate-400/10 text-slate-300',
-};
+import { sendConfirmText } from '../../lib/broadcastCopy';
 
 export default function EditBroadcast({ workspace, broadcast, preview, defaultSettings }) {
     const editable = broadcast.editable;
@@ -28,7 +24,7 @@ export default function EditBroadcast({ workspace, broadcast, preview, defaultSe
     };
 
     const sendNow = () => {
-        if (!window.confirm(`Save and send “${form.data.name}” to the ${broadcast.segment?.name ?? 'selected'} audience now?`)) return;
+        if (!window.confirm(sendConfirmText({ ...broadcast, name: form.data.name }, 'Save your edits and send'))) return;
         form.put(engagePath(`broadcasts/${broadcast.id}`), {
             preserveScroll: true,
             onSuccess: () => router.post(engagePath(`broadcasts/${broadcast.id}/send`)),
@@ -36,13 +32,14 @@ export default function EditBroadcast({ workspace, broadcast, preview, defaultSe
     };
 
     const audience = <section className={panelClass}>
-        <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Audience &amp; delivery</h2><span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${statusStyles[broadcast.status] ?? 'bg-amber-400/10 text-amber-200'}`}>{broadcast.status}</span></div>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Audience &amp; delivery</h2><StatusBadge status={broadcast.status} /></div>
         <dl className="mt-4 grid gap-4 sm:grid-cols-3">
             <Detail label="Segment" value={broadcast.segment?.name ?? '—'} />
             <Detail label="Delivery channel" value={broadcast.delivery_channel ? `${broadcast.delivery_channel.name} · ${broadcast.delivery_channel.driver}` : '—'} />
             <Detail label="From template" value={broadcast.template?.name ?? '—'} />
         </dl>
         <p className="mt-4 text-xs text-slate-500">Content below started as a copy of the template. Edits here only affect this broadcast — the template stays untouched.</p>
+        {broadcast.status !== 'draft' && <Link href={engagePath(`broadcasts/${broadcast.id}`)} className="mt-3 inline-block text-xs font-medium text-emerald-300 hover:text-emerald-200">View delivery report →</Link>}
     </section>;
 
     return <Layout title={`Broadcast · ${broadcast.name}`} workspace={workspace}>
