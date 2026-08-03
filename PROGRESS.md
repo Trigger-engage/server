@@ -246,3 +246,32 @@ reachable only over SQL.
   send-confirm copy moved to `lib/broadcastCopy` and says "unsubscribed or suppressed" —
   bounce-suppressed is not unsubscribed.
 - 15 new feature tests (`BroadcastReportTest`); full suite 139 green.
+
+## Editor fidelity guard — the editor can no longer silently rewrite a journey
+
+Shipped 2026-08-03. Born from the second founding incident: republishing the seeded
+"New user activation" journey from the editor silently deleted its verification branch
+and merged its timeout paths, and the failed attempts before it rendered no error at all.
+
+- `Engine\EditorFidelity` — answers "can the editor round-trip this stored graph without
+  changing behaviour?" Validates each node's complete out-edge SET against buildGraph()'s
+  shapes (missing edges matter as much as wrong ones: a dead-end step would be spliced
+  back onto the spine), rejects unlabeled edges that `Graph::after()` would let answer for
+  every branch outcome, and checks config the rebuild can't reproduce: correlation rules
+  without editor-level scalar mirrors on waits AND goals, timeout_action contradicting the
+  timed-out edge, split variants desynced from their generated send nodes, custom retry
+  backoffs, duplicate node ids.
+- The editor opens such journeys with a banner naming each issue and holds Publish behind
+  an explicit acknowledgement; `publish()` enforces the same server-side, before
+  validation. An acknowledged publish submits only expressible steps, with payload-index →
+  card-index mapping so errors still paint the right card.
+- Failed publishes are finally visible: step errors re-key to `steps.{index}`, prefix
+  "Step N", paint the offending card, and summarise in the Publish panel — which also now
+  warns that publishing a paused automation reactivates it.
+- `inferTimeoutAction()` recognises exit nodes by TYPE (seeded journeys name theirs
+  'done'); a stop-on-timeout used to round-trip as "continue".
+- Adversarial review of the first version produced 12 confirmed counterexamples
+  (empirically, against this codebase — including the seeded Wellness Step goal, whose
+  correlation a republish would have emptied, making any completed step complete every
+  pending run). The rewrite covers all 12, each pinned by a test.
+- 18 feature tests (`EditorFidelityTest`); full suite 157 green.
