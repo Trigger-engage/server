@@ -96,19 +96,31 @@ class EmailChannel
         // "smtp" builds an on-the-fly mailer from the workspace's encrypted
         // credentials (ZeptoMail et al. are SMTP-compatible). Anything else
         // falls through to the app's named mailers — log/array in dev+tests.
-        if ($channel->driver === 'smtp') {
-            $credentials = $channel->credentials ?? [];
-
-            return Mail::build([
-                'transport' => 'smtp',
-                'host' => $credentials['host'] ?? null,
-                'port' => (int) ($credentials['port'] ?? 587),
-                'username' => $credentials['username'] ?? null,
-                'password' => $credentials['password'] ?? null,
-                'encryption' => $credentials['encryption'] ?? 'tls',
-            ]);
+        if ($channel->driver !== 'smtp') {
+            return Mail::mailer($channel->driver);
         }
 
-        return Mail::mailer($channel->driver);
+        $credentials = $channel->credentials ?? [];
+
+        $config = [
+            'transport' => 'smtp',
+            'host' => $credentials['host'] ?? null,
+            'port' => (int) ($credentials['port'] ?? 587),
+            'username' => $credentials['username'] ?? null,
+            'password' => $credentials['password'] ?? null,
+            'encryption' => $credentials['encryption'] ?? 'tls',
+        ];
+
+        // Registering the config and resolving it by name, rather than Mail::build(),
+        // which does not exist before Laravel 11 — this package supports ^10.48, and
+        // on a Laravel 10 host every smtp-channel send died with "Method
+        // Illuminate\Mail\Mailer::build does not exist". The credentials hash is part
+        // of the name so MailManager's instance cache cannot keep serving a
+        // long-running queue worker the credentials a channel had at boot.
+        $name = 'trigger-engage-'.$channel->getKey().'-'.substr(md5(serialize($config)), 0, 8);
+
+        config()->set("mail.mailers.{$name}", $config);
+
+        return Mail::mailer($name);
     }
 }
