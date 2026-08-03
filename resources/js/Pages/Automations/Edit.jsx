@@ -271,17 +271,23 @@ function buildFlow(steps, triggerName, events, goal) {
         }
 
         edges.push({ id: `${source}-matched`, source, target: next, label: 'matched', animated: true, style: { stroke: '#34d399' }, labelStyle: { fill: '#6ee7b7' } });
-        if (step.timeout_action === 'continue') {
+
+        // A graph authored outside this editor (seeder, API, import) may carry no
+        // timeout_action; the server infers one, and this matches the `?? 'exit'`
+        // the form fields already use so the canvas can never be the thing that throws.
+        const timeoutAction = step.timeout_action ?? 'exit';
+
+        if (timeoutAction === 'continue') {
             edges.push({ id: `${source}-timeout`, source, target: next, label: 'timed out', style: { stroke: '#f59e0b' }, labelStyle: { fill: '#fbbf24' } });
             return;
         }
 
         const waitNode = nodes.find((node) => node.id === source);
         const timeoutId = `timeout-${index}`;
-        const timeoutLabel = step.timeout_action === 'exit' ? 'Timeout · stop run' : `Timeout · ${step.timeout_action.replaceAll('_', ' ')}`;
+        const timeoutLabel = timeoutAction === 'exit' ? 'Timeout · stop run' : `Timeout · ${timeoutAction.replaceAll('_', ' ')}`;
         nodes.push({ id: timeoutId, position: { x: 360, y: waitNode.position.y }, data: { label: timeoutLabel }, draggable: false, style: { background: '#451a03', color: '#fde68a', border: '1px solid #f59e0b', width: 220 } });
         edges.push({ id: `${source}-timeout`, source, target: timeoutId, label: 'timed out', style: { stroke: '#f59e0b' }, labelStyle: { fill: '#fbbf24' } });
-        if (step.timeout_action !== 'exit') edges.push({ id: `${timeoutId}-next`, source: timeoutId, target: next, style: { stroke: '#f59e0b' } });
+        if (timeoutAction !== 'exit') edges.push({ id: `${timeoutId}-next`, source: timeoutId, target: next, style: { stroke: '#f59e0b' } });
     });
 
     return { nodes, edges };

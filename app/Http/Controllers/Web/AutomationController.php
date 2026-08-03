@@ -232,13 +232,51 @@ class AutomationController extends Controller
     /** @return array<int, array<string, mixed>> */
     protected function editableSteps(Automation $automation): array
     {
-        return collect($automation->activeVersion?->graph['nodes'] ?? [])
+        $graph = $automation->activeVersion?->graph ?? [];
+
+        return collect($graph['nodes'] ?? [])
             ->reject(fn (array $node) => in_array($node['type'], ['trigger', 'exit'], true))
             ->reject(fn (array $node) => (bool) ($node['config']['generated_for_wait'] ?? false))
             ->reject(fn (array $node) => (bool) ($node['config']['generated_for_split'] ?? false))
-            ->map(fn (array $node) => ['type' => $node['type'], ...($node['config'] ?? [])])
+            ->map(function (array $node) use ($graph) {
+                $step = ['type' => $node['type'], ...($node['config'] ?? [])];
+
+                if ($node['type'] === 'wait_for_event' && ! isset($step['timeout_action'])) {
+                    $step['timeout_action'] = $this->inferTimeoutAction($graph, $node['id']);
+                }
+
+                return $step;
+            })
             ->values()
             ->all();
+    }
+
+    /**
+     * Graphs authored outside this editor — the seeders, the API, an import — carry no
+     * `timeout_action`, which is an editor-level concept that buildGraph() writes out as
+     * edges. Recover it from those edges so such an automation opens instead of handing
+     * the page an undefined value.
+     *
+     * @param  array<string, mixed>  $graph
+     */
+    protected function inferTimeoutAction(array $graph, string $nodeId): string
+    {
+        $timeoutEdge = collect($graph['edges'] ?? [])
+            ->first(fn (array $edge) => ($edge['branch'] ?? null) === 'timed_out'
+                && ($edge['from'] ?? null) === $nodeId);
+
+        $target = $timeoutEdge['to'] ?? null;
+
+        if ($target === null || $target === 'exit') {
+            return 'exit';
+        }
+
+        $targetNode = collect($graph['nodes'] ?? [])->firstWhere('id', $target);
+
+        // buildGraph() routes a send-on-timeout through a node it generated for this wait.
+        return ($targetNode['config']['generated_for_wait'] ?? null) === $nodeId
+            ? (string) $targetNode['type']
+            : 'continue';
     }
 
     /** @return array<string, mixed> */

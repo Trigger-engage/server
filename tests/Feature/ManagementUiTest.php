@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
 use TriggerEngage\Server\Models\Automation;
@@ -114,6 +115,63 @@ class ManagementUiTest extends TestCase
                 ->where('automation.name', 'Welcome sequence')
                 ->has('automation.steps', 2)
             );
+    }
+
+    /**
+     * Graphs authored outside the editor — the seeders, the ingestion API, an import —
+     * have no `timeout_action` on their wait nodes, because that is an editor-level
+     * concept buildGraph() encodes as edges. The Edit page used to hand React an
+     * undefined there and die with "Cannot read properties of undefined (reading
+     * 'replaceAll')", taking the whole page down.
+     */
+    #[DataProvider('waitTimeoutGraphs')]
+    public function test_wait_nodes_authored_outside_the_editor_still_open(string $timeoutTarget, string $expected): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $event = Event::firstOrCreate(
+            ['workspace_id' => $workspace->id, 'name' => 'email_verified'],
+            ['first_seen_at' => now()]
+        );
+
+        $automation = $this->makeAutomation($workspace, 'customer_sign_up', [
+            'nodes' => [
+                ['id' => 'trigger', 'type' => 'trigger', 'config' => []],
+                ['id' => 'await', 'type' => 'wait_for_event', 'config' => [
+                    // Deliberately no timeout_action, exactly like MytherapistLifecycleSeeder.
+                    'event_id' => $event->id,
+                    'timeout_hours' => 20,
+                ]],
+                ['id' => 'later', 'type' => 'send_email', 'config' => [
+                    'template_id' => $template->id,
+                    'channel_id' => $channel->id,
+                ]],
+                ['id' => 'exit', 'type' => 'exit', 'config' => []],
+            ],
+            'edges' => [
+                ['from' => 'trigger', 'to' => 'await'],
+                ['from' => 'await', 'to' => 'later', 'branch' => 'matched'],
+                ['from' => 'await', 'to' => $timeoutTarget, 'branch' => 'timed_out'],
+                ['from' => 'later', 'to' => 'exit'],
+            ],
+        ]);
+
+        $this->get('/app/automations/'.$automation->id, $headers)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Automations/Edit')
+                ->where('automation.steps.0.timeout_action', $expected)
+            );
+    }
+
+    public static function waitTimeoutGraphs(): array
+    {
+        return [
+            'timeout exits the run' => ['exit', 'exit'],
+            'timeout falls through to the next step' => ['later', 'continue'],
+        ];
     }
 
     public function test_automation_routes_cannot_cross_workspace_boundaries(): void
