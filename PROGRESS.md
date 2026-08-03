@@ -218,3 +218,31 @@ platform. Full suite 87 green (server) + 9 (SDK).
 - Channel connection test probes with an empty receipt lookup — free, sends nothing, and still
   exercises the access token when enhanced security is on.
 - 10 new feature tests (`ExpoPushTest`); full suite 120 green.
+
+## Broadcast delivery reports — failure made legible
+
+Shipped 2026-08-03. Born from a real embedded-production incident: a send reported
+"8 skipped/failed · 8 total" and the causes sat unread in `broadcast_recipients.error`,
+reachable only over SQL.
+
+- `GET broadcasts/{broadcast}` — the delivery report: segmented outcome bar; sent, skipped,
+  and failed as three separate counts (skipped = expected, no address or unsubscribed;
+  failed = something broke); reasons grouped by distinct error so a crash hitting 200
+  people reads as one row; status-filterable, paginated recipient table linking each
+  person. Known machine reasons render in plain language; unexpected errors show raw text.
+- `POST broadcasts/{broadcast}/retry-failed` — re-queues only the failed rows under the
+  sender's lock; refuses mid-send; skipped rows are excluded by design. The send job was
+  already idempotent for re-dispatch (reuses the recipient's message row).
+- Pre-send audience preview on drafts (one conditional-aggregation query each): the send
+  confirmation now reads "Send to 3 of 8 — 5 will be skipped (no email address)" before
+  the surprise. Destination predicates mirror the send job exactly: empty strings are
+  missing, and push resolves `onesignal_external_id ?? external_id`, so anonymous
+  profiles with neither count as unreachable.
+- Hardening found by adversarial review: both dispatch loops (send + retry) now
+  swallow-and-report per-recipient throws — on the sync queue one throwing job would
+  otherwise strand every recipient after it as `queued` with the broadcast wedged in
+  `sending` and no recovery path in the UI.
+- One shared `StatusBadge` (completed rendered emerald on two pages and grey on a third);
+  send-confirm copy moved to `lib/broadcastCopy` and says "unsubscribed or suppressed" —
+  bounce-suppressed is not unsubscribed.
+- 15 new feature tests (`BroadcastReportTest`); full suite 139 green.
