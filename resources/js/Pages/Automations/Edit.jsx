@@ -1,7 +1,8 @@
+import { useRef, useState } from 'react';
 import { Link, router, useForm } from '@inertiajs/react';
 import { Background, Controls, ReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import Layout, { FieldError, buttonClass, inputClass, panelClass, secondaryButtonClass } from '../../components/Layout';
+import Layout, { FieldError, StatusBadge, buttonClass, inputClass, panelClass, secondaryButtonClass } from '../../components/Layout';
 import { engagePath } from '../../lib/engagePath';
 
 const freshDelay = () => ({ type: 'delay', days: 0, hours: 0, minutes: 10, until_time: '' });
@@ -15,8 +16,24 @@ const freshSplit = (templates, channels) => ({ type: 'split', variants: [freshVa
 const freshSegmentFilter = (segments) => ({ type: 'segment', segment_id: segments[0]?.id ?? '', in: true });
 const canSend = (type, templates, channels) => templates.some((item) => item.channel === type) && channels.some((item) => item.type === type);
 
-export default function EditAutomation({ workspace, automation, templates, channels, events, segments = [], triggerFilters = [], abTests = [] }) {
+export default function EditAutomation({ workspace, automation, templates, channels, events, segments = [], triggerFilters = [], abTests = [], fidelity = [] }) {
     const form = useForm({ steps: automation.steps, goal: automation.goal, trigger_filters: triggerFilters });
+    const [acknowledgeLossy, setAcknowledgeLossy] = useState(false);
+    const lossy = fidelity.length > 0;
+    // An acknowledged publish filters unsupported steps from the payload, so
+    // server error keys (steps.N) are payload-relative; this maps them back to
+    // the card indexes the page renders.
+    const submittedIndexes = useRef(null);
+    // Any error keyed steps.N[...] paints card N and feeds the publish summary —
+    // a rejected publish must never look like "nothing happened".
+    const stepErrors = Object.entries(form.errors).reduce((accumulator, [key, message]) => {
+        const match = key.match(/^steps\.(\d+)/);
+        if (!match) return accumulator;
+        const payloadIndex = Number(match[1]);
+        const cardIndex = submittedIndexes.current ? (submittedIndexes.current[payloadIndex] ?? payloadIndex) : payloadIndex;
+        (accumulator[cardIndex] ||= []).push(message.replace(/^Step \d+: /, ''));
+        return accumulator;
+    }, {});
 
     const addStep = (step) => form.setData('steps', [...form.data.steps, step]);
     const updateStep = (index, key, value) => form.setData('steps', form.data.steps.map((step, position) => position === index ? { ...step, [key]: value } : step));
@@ -31,8 +48,19 @@ export default function EditAutomation({ workspace, automation, templates, chann
         form.setData('steps', steps);
     };
 
+    const SUPPORTED_STEP_TYPES = ['delay', 'wait_for_event', 'send_email', 'send_sms', 'send_push', 'split', 'segment'];
     const publish = (event) => {
         event.preventDefault();
+        // An acknowledged lossy publish sends only the steps the editor can
+        // express — exactly the rewrite the banner's checkbox described.
+        submittedIndexes.current = acknowledgeLossy
+            ? form.data.steps.map((step, index) => (SUPPORTED_STEP_TYPES.includes(step.type) ? index : null)).filter((index) => index !== null)
+            : null;
+        form.transform((data) => ({
+            ...data,
+            acknowledge_lossy: acknowledgeLossy,
+            steps: acknowledgeLossy ? data.steps.filter((step) => SUPPORTED_STEP_TYPES.includes(step.type)) : data.steps,
+        }));
         form.put(engagePath(`automations/${automation.id}/publish`), { preserveScroll: true });
     };
     const { nodes: flowNodes, edges: flowEdges } = buildFlow(form.data.steps, automation.trigger_event?.name, events, form.data.goal);
@@ -54,12 +82,23 @@ export default function EditAutomation({ workspace, automation, templates, chann
         <Layout title={automation.name} workspace={workspace}>
             <Link href={engagePath('automations')} className="text-sm text-slate-400 transition hover:text-white">← Back to automations</Link>
             <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div><div className="flex items-center gap-3"><h1 className="text-3xl font-bold tracking-tight">{automation.name}</h1><span className={`rounded-full px-2.5 py-1 text-xs ${automation.status === 'active' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-200'}`}>{automation.status}</span></div><p className="mt-2 text-sm text-slate-400">When <strong className="text-slate-200">{automation.trigger_event?.name}</strong> occurs · {automation.reentry_policy.replaceAll('_', ' ')}</p></div>
+                <div><div className="flex items-center gap-3"><h1 className="text-3xl font-bold tracking-tight">{automation.name}</h1><StatusBadge status={automation.status} /></div><p className="mt-2 text-sm text-slate-400">When <strong className="text-slate-200">{automation.trigger_event?.name}</strong> occurs · {automation.reentry_policy.replaceAll('_', ' ')}</p></div>
                 {automation.status === 'active' && <button className={secondaryButtonClass} onClick={() => router.post(engagePath(`automations/${automation.id}/pause`))}>Pause automation</button>}
             </div>
 
             <form onSubmit={publish} className="mt-8 grid gap-6 lg:grid-cols-[1fr_300px]">
                 <section className={panelClass}>
+                    {lossy && <div role="alert" className="mb-6 rounded-xl border border-rose-400/40 bg-rose-400/[0.06] p-5">
+                        <h2 className="font-semibold text-rose-200">This journey has steps this editor can't fully edit</h2>
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-rose-200/90">
+                            {fidelity.map((issue, index) => <li key={index}>{issue.message}</li>)}
+                        </ul>
+                        <p className="mt-3 text-xs leading-5 text-rose-200/80">It was authored outside this editor (the API or a seeder). Publishing from here rewrites the journey without those parts. People already mid-journey keep the version they started on.</p>
+                        <label className="mt-4 flex items-start gap-2 text-sm text-slate-200">
+                            <input type="checkbox" className="mt-0.5" checked={acknowledgeLossy} onChange={(event) => setAcknowledgeLossy(event.target.checked)} />
+                            I understand — publish this journey without the unsupported parts
+                        </label>
+                    </div>}
                     <div className="mb-6 h-[360px] overflow-hidden rounded-xl border border-white/10 bg-slate-950"><ReactFlow key={`${form.data.goal.enabled}:${form.data.goal.event_id}|${form.data.steps.map((step) => `${step.type}:${step.timeout_action ?? ''}:${step.variants?.length ?? ''}`).join('|')}`} nodes={flowNodes} edges={flowEdges} fitView fitViewOptions={{ padding: 0.24 }} onNodeDragStop={reorderFromCanvas} minZoom={0.35} maxZoom={1.5}><Background color="#334155" gap={18} /><Controls /></ReactFlow></div>
                     <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-4"><div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Trigger</div><div className="mt-1 font-medium">{automation.trigger_event?.name}</div></div>
 
@@ -67,13 +106,15 @@ export default function EditAutomation({ workspace, automation, templates, chann
                     {form.data.steps.length === 0 && <div className="rounded-xl border border-dashed border-white/15 p-8 text-center text-sm text-slate-500">No actions yet. Add a delay or email step.</div>}
                     {form.data.steps.map((step, index) => (
                         <div key={index}>
-                            <div className="rounded-xl border border-white/10 bg-slate-900/80 p-5">
+                            <div className={`rounded-xl border p-5 ${stepErrors[index] ? 'border-rose-400/60 bg-rose-400/[0.04]' : 'border-white/10 bg-slate-900/80'}`}>
                                 <div className="mb-4 flex items-center justify-between"><div><span className="mr-2 text-xs text-slate-500">{index + 1}</span><span className="font-semibold">{step.type === 'split' ? 'A/B test' : step.type === 'segment' ? 'segment filter' : step.type.replaceAll('_', ' ')}</span></div><div className="flex gap-1"><TinyButton onClick={() => moveStep(index, -1)} disabled={index === 0}>↑</TinyButton><TinyButton onClick={() => moveStep(index, 1)} disabled={index === form.data.steps.length - 1}>↓</TinyButton><TinyButton onClick={() => removeStep(index)}>Remove</TinyButton></div></div>
+                                {stepErrors[index] && <div role="alert" className="mb-4 space-y-1">{stepErrors[index].map((message, position) => <p key={position} className="text-xs text-rose-300">{message}</p>)}</div>}
                                 {step.type === 'delay' && <DelayStep step={step} update={(key, value) => updateStep(index, key, value)} />}
                                 {step.type === 'segment' && <SegmentStep step={step} update={(key, value) => updateStep(index, key, value)} segments={segments} />}
                                 {step.type === 'wait_for_event' && <WaitForEventStep step={step} update={(key, value) => updateStep(index, key, value)} events={events} templates={templates} channels={channels} />}
                                 {step.type === 'split' && <SplitStep step={step} update={(key, value) => updateStep(index, key, value)} templates={templates} channels={channels} />}
                                 {step.type.startsWith('send_') && <SendStep step={step} update={(key, value) => updateStep(index, key, value)} templates={templates} channels={channels} />}
+                                {!['delay', 'segment', 'wait_for_event', 'split'].includes(step.type) && !step.type.startsWith('send_') && <p className="text-sm text-slate-400">A “{step.type.replaceAll('_', ' ')}” step from the API or a seeder — this editor can't edit it, and publishing removes it.</p>}
                             </div>
                             <div className="mx-7 h-6 w-px bg-white/15" />
                         </div>
@@ -86,7 +127,19 @@ export default function EditAutomation({ workspace, automation, templates, chann
                     <TriggerFilters filters={form.data.trigger_filters} update={(filters) => form.setData('trigger_filters', filters)} error={form.errors.trigger_filters || form.errors['trigger_filters.0.field']} />
                     <GoalSettings goal={form.data.goal} events={events} update={updateGoal} toggle={toggleGoal} error={form.errors.goal || form.errors['goal.event_id']} />
                     <section className={panelClass}><h2 className="font-semibold">Add a step</h2><div className="mt-4 grid gap-2"><button type="button" className={secondaryButtonClass} onClick={() => addStep(freshDelay())}>+ Delay</button><button type="button" className={secondaryButtonClass} disabled={events.length === 0} onClick={() => addStep(freshWait(events))}>+ Wait for event</button>{['email', 'sms', 'push'].map((type) => <button key={type} type="button" className={secondaryButtonClass} disabled={!canSend(type, templates, channels)} onClick={() => addStep(freshSend(`send_${type}`, templates, channels))}>+ Send {type}</button>)}<button type="button" className={secondaryButtonClass} disabled={!['email', 'sms', 'push'].some((type) => canSend(type, templates, channels))} onClick={() => addStep(freshSplit(templates, channels))}>+ A/B test</button><button type="button" className={secondaryButtonClass} disabled={segments.length === 0} onClick={() => addStep(freshSegmentFilter(segments))}>+ Segment filter</button></div>{events.length === 0 && <p className="mt-3 text-xs text-amber-200">Create the event you want to wait for first.</p>}</section>
-                    <section className={panelClass}><h2 className="font-semibold">Publish</h2><p className="mt-2 text-xs leading-5 text-slate-500">Publishing creates an immutable version. Existing runs remain pinned to their original version.</p><FieldError message={form.errors.steps} /><button className={`${buttonClass} mt-4 w-full`} disabled={form.processing}>{form.processing ? 'Publishing…' : 'Publish new version'}</button>{automation.published_at && <p className="mt-3 text-center text-xs text-slate-600">Last published {new Date(automation.published_at).toLocaleString()}</p>}</section>
+                    <section className={panelClass}>
+                        <h2 className="font-semibold">Publish</h2>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">Publishing creates an immutable version. Existing runs remain pinned to their original version.</p>
+                        {automation.status === 'paused' && <p className="mt-2 text-xs leading-5 text-amber-200">This automation is paused — publishing also reactivates it.</p>}
+                        <FieldError message={form.errors.steps} />
+                        <FieldError message={form.errors.fidelity} />
+                        {Object.entries(stepErrors).length > 0 && <div role="alert" className="mt-2 space-y-1">
+                            {Object.entries(stepErrors).map(([index, messages]) => messages.map((message, position) => <p key={`${index}-${position}`} className="text-xs text-rose-300">{`Step ${Number(index) + 1}: ${message}`}</p>))}
+                        </div>}
+                        {lossy && !acknowledgeLossy && <p className="mt-2 text-xs leading-5 text-rose-200/90">Publishing is blocked until you acknowledge the rewrite in the banner above.</p>}
+                        <button className={`${buttonClass} mt-4 w-full`} disabled={form.processing || (lossy && !acknowledgeLossy)}>{form.processing ? 'Publishing…' : 'Publish new version'}</button>
+                        {automation.published_at && <p className="mt-3 text-center text-xs text-slate-500">Last published {new Date(automation.published_at).toLocaleString()}</p>}
+                    </section>
                 </aside>
             </form>
         </Layout>

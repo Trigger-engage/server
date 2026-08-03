@@ -8,6 +8,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use TriggerEngage\Server\Engine\EditorFidelity;
 use TriggerEngage\Server\Http\Controllers\Controller;
 use TriggerEngage\Server\Models\Automation;
 use TriggerEngage\Server\Models\AutomationRun;
@@ -83,6 +84,10 @@ class AutomationController extends Controller
             'events' => $workspace->events()->orderBy('name')->get(['id', 'name']),
             'segments' => $workspace->segments()->orderBy('name')->get(['id', 'name', 'type']),
             'triggerFilters' => $this->editableTriggerFilters($automation),
+            // Non-empty when the stored graph holds shapes the step list cannot
+            // express — the editor shows a banner and gates Publish on an
+            // explicit acknowledgement instead of silently rewriting the graph.
+            'fidelity' => EditorFidelity::issues($automation->activeVersion?->graph ?? []),
         ]);
     }
 
@@ -90,6 +95,21 @@ class AutomationController extends Controller
     {
         $workspace = $request->attributes->get('workspace');
         $this->ensureWorkspaceOwns($workspace->id, $automation);
+
+        // The fidelity guard: if the ACTIVE graph holds shapes the step list
+        // cannot express, any publish from the editor rewrites the journey —
+        // refuse unless the user has explicitly acknowledged that. This is what
+        // stands between a seeded/API-authored journey and the silent
+        // flattening that removed a live verification branch.
+        $issues = EditorFidelity::issues($automation->activeVersion?->graph ?? []);
+
+        if ($issues !== [] && ! $request->boolean('acknowledge_lossy')) {
+            throw ValidationException::withMessages([
+                'fidelity' => 'This journey contains steps the editor cannot represent: '
+                    .collect($issues)->pluck('message')->implode(' ')
+                    .' Publishing from here would rewrite it without them — tick the acknowledgement to publish anyway.',
+            ]);
+        }
 
         $validated = $request->validate([
             'steps' => ['present', 'array', 'max:100'],
@@ -145,6 +165,7 @@ class AutomationController extends Controller
             'trigger_filters.*.field' => ['required', 'string', 'max:150'],
             'trigger_filters.*.operator' => ['nullable', Rule::in(['equals', 'not_equals', 'contains', 'exists', 'not_exists', 'gt', 'lt'])],
             'trigger_filters.*.value' => ['nullable'],
+            'acknowledge_lossy' => ['nullable', 'boolean'],
         ]);
 
         $graph = $this->buildGraph(
@@ -273,6 +294,13 @@ class AutomationController extends Controller
 
         $targetNode = collect($graph['nodes'] ?? [])->firstWhere('id', $target);
 
+        // Seeded/API graphs often name their exit node something else ('done');
+        // recognise it by TYPE, or a timeout that stops the run would round-trip
+        // as 'continue' and quietly march people into the next step.
+        if (($targetNode['type'] ?? null) === 'exit') {
+            return 'exit';
+        }
+
         // buildGraph() routes a send-on-timeout through a node it generated for this wait.
         return ($targetNode['config']['generated_for_wait'] ?? null) === $nodeId
             ? (string) $targetNode['type']
@@ -339,98 +367,10 @@ class AutomationController extends Controller
         foreach ($steps as $index => $step) {
             $id = 'step_'.($index + 1);
 
-            if ($step['type'] === 'split') {
-                [$config, $variantNodes] = $this->splitConfig($workspaceId, $id, $step);
-                $generatedNodes[$id] = $variantNodes;
-            } elseif ($step['type'] === 'segment') {
-                $segment = Segment::query()
-                    ->where('workspace_id', $workspaceId)
-                    ->find($step['segment_id'] ?? null);
-
-                if (! $segment) {
-                    throw ValidationException::withMessages([
-                        'steps' => 'Every segment filter must select a segment from this workspace.',
-                    ]);
-                }
-
-                $config = [
-                    'segment_id' => $segment->id,
-                    'segment_name' => $segment->name,
-                    'in' => ($step['in'] ?? true) !== false,
-                ];
-            } elseif ($step['type'] === 'delay') {
-                $config = filled($step['until_time'] ?? null)
-                    ? ['until_time' => $step['until_time']]
-                    : [
-                        'days' => (int) ($step['days'] ?? 0),
-                        'hours' => (int) ($step['hours'] ?? 0),
-                        'minutes' => (int) ($step['minutes'] ?? 0),
-                    ];
-            } elseif ($step['type'] === 'wait_for_event') {
-                $event = Event::query()
-                    ->where('workspace_id', $workspaceId)
-                    ->find($step['event_id'] ?? null);
-
-                if (! $event) {
-                    throw ValidationException::withMessages([
-                        'steps' => 'Every event wait must select an event from this workspace.',
-                    ]);
-                }
-
-                $config = [
-                    'event_id' => $event->id,
-                    'event_name' => $event->name,
-                    'timeout_days' => (int) ($step['timeout_days'] ?? 0),
-                    'timeout_hours' => (int) ($step['timeout_hours'] ?? 0),
-                    'timeout_minutes' => (int) ($step['timeout_minutes'] ?? 0),
-                    'timeout_action' => $step['timeout_action'] ?? 'continue',
-                    'incoming_field' => $step['incoming_field'] ?? '',
-                    'trigger_field' => $step['trigger_field'] ?? '',
-                    'match_operator' => $step['match_operator'] ?? 'equals',
-                ];
-
-                if ($config['timeout_days'] + $config['timeout_hours'] + $config['timeout_minutes'] < 1) {
-                    throw ValidationException::withMessages([
-                        'steps' => 'Every event wait needs a timeout of at least one minute.',
-                    ]);
-                }
-
-                if (filled($config['incoming_field']) !== filled($config['trigger_field'])) {
-                    throw ValidationException::withMessages([
-                        'steps' => 'Event correlation needs both an incoming field and a trigger field, or neither.',
-                    ]);
-                }
-
-                $config['match_rules'] = filled($config['incoming_field'])
-                    ? [[
-                        'incoming_field' => $config['incoming_field'],
-                        'operator' => $config['match_operator'],
-                        'source' => 'trigger_event',
-                        'source_field' => $config['trigger_field'],
-                    ]]
-                    : [];
-
-                if (str_starts_with($config['timeout_action'], 'send_')) {
-                    $timeoutConfig = $this->sendConfig($workspaceId, $config['timeout_action'], [
-                        'template_id' => $step['timeout_template_id'] ?? null,
-                        'channel_id' => $step['timeout_channel_id'] ?? null,
-                        'retry_attempts' => $step['timeout_retry_attempts'] ?? 3,
-                        'on_failure' => $step['timeout_on_failure'] ?? 'continue',
-                    ]);
-                    $config += [
-                        'timeout_template_id' => $timeoutConfig['template_id'],
-                        'timeout_channel_id' => $timeoutConfig['channel_id'],
-                        'timeout_retry_attempts' => $timeoutConfig['retry_attempts'],
-                        'timeout_on_failure' => $timeoutConfig['on_failure'],
-                    ];
-                    $generatedNodes[$id][] = [
-                        'id' => $id.'__timeout',
-                        'type' => $config['timeout_action'],
-                        'config' => [...$timeoutConfig, 'generated_for_wait' => $id],
-                    ];
-                }
-            } else {
-                $config = $this->sendConfig($workspaceId, $step['type'], $step);
+            try {
+                $config = $this->stepConfig($workspaceId, $id, $index, $step, $generatedNodes);
+            } catch (ValidationException $exception) {
+                throw $this->stepError($index, $exception);
             }
 
             $visibleNodes[] = ['id' => $id, 'type' => $step['type'], 'config' => $config];
@@ -620,5 +560,124 @@ class AutomationController extends Controller
             'retry_attempts' => (int) ($step['retry_attempts'] ?? 3),
             'on_failure' => $step['on_failure'] ?? 'continue',
         ];
+    }
+
+    /**
+     * Config for one editor step, exactly as the old inline loop built it.
+     * Extracted so a ValidationException can be re-keyed to the step it names.
+     *
+     * @param  array<string, array<int, array>>  $generatedNodes
+     * @return array<string, mixed>
+     */
+    protected function stepConfig(int $workspaceId, string $id, int $index, array $step, array &$generatedNodes): array
+    {
+        if ($step['type'] === 'split') {
+            [$config, $variantNodes] = $this->splitConfig($workspaceId, $id, $step);
+            $generatedNodes[$id] = $variantNodes;
+        } elseif ($step['type'] === 'segment') {
+            $segment = Segment::query()
+                ->where('workspace_id', $workspaceId)
+                ->find($step['segment_id'] ?? null);
+
+            if (! $segment) {
+                throw ValidationException::withMessages([
+                    'steps' => 'Every segment filter must select a segment from this workspace.',
+                ]);
+            }
+
+            $config = [
+                'segment_id' => $segment->id,
+                'segment_name' => $segment->name,
+                'in' => ($step['in'] ?? true) !== false,
+            ];
+        } elseif ($step['type'] === 'delay') {
+            $config = filled($step['until_time'] ?? null)
+                ? ['until_time' => $step['until_time']]
+                : [
+                    'days' => (int) ($step['days'] ?? 0),
+                    'hours' => (int) ($step['hours'] ?? 0),
+                    'minutes' => (int) ($step['minutes'] ?? 0),
+                ];
+        } elseif ($step['type'] === 'wait_for_event') {
+            $event = Event::query()
+                ->where('workspace_id', $workspaceId)
+                ->find($step['event_id'] ?? null);
+
+            if (! $event) {
+                throw ValidationException::withMessages([
+                    'steps' => 'Every event wait must select an event from this workspace.',
+                ]);
+            }
+
+            $config = [
+                'event_id' => $event->id,
+                'event_name' => $event->name,
+                'timeout_days' => (int) ($step['timeout_days'] ?? 0),
+                'timeout_hours' => (int) ($step['timeout_hours'] ?? 0),
+                'timeout_minutes' => (int) ($step['timeout_minutes'] ?? 0),
+                'timeout_action' => $step['timeout_action'] ?? 'continue',
+                'incoming_field' => $step['incoming_field'] ?? '',
+                'trigger_field' => $step['trigger_field'] ?? '',
+                'match_operator' => $step['match_operator'] ?? 'equals',
+            ];
+
+            if ($config['timeout_days'] + $config['timeout_hours'] + $config['timeout_minutes'] < 1) {
+                throw ValidationException::withMessages([
+                    'steps' => 'Every event wait needs a timeout of at least one minute.',
+                ]);
+            }
+
+            if (filled($config['incoming_field']) !== filled($config['trigger_field'])) {
+                throw ValidationException::withMessages([
+                    'steps' => 'Event correlation needs both an incoming field and a trigger field, or neither.',
+                ]);
+            }
+
+            $config['match_rules'] = filled($config['incoming_field'])
+                ? [[
+                    'incoming_field' => $config['incoming_field'],
+                    'operator' => $config['match_operator'],
+                    'source' => 'trigger_event',
+                    'source_field' => $config['trigger_field'],
+                ]]
+                : [];
+
+            if (str_starts_with($config['timeout_action'], 'send_')) {
+                $timeoutConfig = $this->sendConfig($workspaceId, $config['timeout_action'], [
+                    'template_id' => $step['timeout_template_id'] ?? null,
+                    'channel_id' => $step['timeout_channel_id'] ?? null,
+                    'retry_attempts' => $step['timeout_retry_attempts'] ?? 3,
+                    'on_failure' => $step['timeout_on_failure'] ?? 'continue',
+                ]);
+                $config += [
+                    'timeout_template_id' => $timeoutConfig['template_id'],
+                    'timeout_channel_id' => $timeoutConfig['channel_id'],
+                    'timeout_retry_attempts' => $timeoutConfig['retry_attempts'],
+                    'timeout_on_failure' => $timeoutConfig['on_failure'],
+                ];
+                $generatedNodes[$id][] = [
+                    'id' => $id.'__timeout',
+                    'type' => $config['timeout_action'],
+                    'config' => [...$timeoutConfig, 'generated_for_wait' => $id],
+                ];
+            }
+        } else {
+            $config = $this->sendConfig($workspaceId, $step['type'], $step);
+        }
+
+        return $config;
+    }
+
+    /** Re-key a step's validation messages to the step, naming it for the user. */
+    protected function stepError(int $index, ValidationException $exception): ValidationException
+    {
+        return ValidationException::withMessages(
+            collect($exception->errors())->mapWithKeys(fn (array $messages, string $key) => [
+                $key === 'steps' ? 'steps.'.$index : $key => array_map(
+                    fn (string $message) => str_starts_with($message, 'Step ') ? $message : 'Step '.($index + 1).': '.$message,
+                    $messages
+                ),
+            ])->all()
+        );
     }
 }
