@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
 use TriggerEngage\Server\Engine\Channels\PushChannel;
@@ -250,5 +251,53 @@ class ExpoPushTest extends TestCase
         ]);
 
         return [$template, $channel];
+    }
+
+    public function test_expo_broadcasts_skip_tokenless_people_instead_of_failing(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create(['channel' => 'push', 'name' => 'Push', 'subject' => 'Hi', 'body' => 'Hello {{ person.first_name }}']);
+        $channel = $workspace->channels()->create(['type' => 'push', 'driver' => 'expo', 'name' => 'Expo', 'credentials' => []]);
+        $segment = $workspace->segments()->where('type', 'all')->sole();
+
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'with-token', 'attributes' => ['expo_push_tokens' => ['ExponentPushToken[live]']]]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'no-token']);
+
+        Http::fake(['exp.host/*' => Http::response(['data' => [['status' => 'ok', 'id' => 't1']]], 200)]);
+
+        $broadcast = $workspace->broadcasts()->create([
+            'name' => 'Caregiver update', 'channel' => 'push', 'segment_id' => $segment->id,
+            'template_id' => $template->id, 'channel_id' => $channel->id, 'status' => 'draft', 'body' => 'Hello',
+        ]);
+        $this->post("/app/broadcasts/{$broadcast->id}/send", [], $this->authHeaders($workspace, $key))->assertRedirect();
+
+        // The token-less person is an expected SKIP, not a failure.
+        $this->assertSame(1, $broadcast->recipients()->where('status', 'sent')->count());
+        $this->assertSame(1, $broadcast->recipients()->where('status', 'skipped')->count());
+        $this->assertSame(0, $broadcast->recipients()->where('status', 'failed')->count());
+    }
+
+    public function test_expo_audience_preview_counts_tokens_not_external_ids(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create(['channel' => 'push', 'name' => 'Push', 'subject' => 'Hi', 'body' => 'Hello']);
+        $channel = $workspace->channels()->create(['type' => 'push', 'driver' => 'expo', 'name' => 'Expo', 'credentials' => []]);
+        $segment = $workspace->segments()->where('type', 'all')->sole();
+
+        // Both have external ids; only one carries Expo tokens.
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'with-token', 'attributes' => ['expo_push_tokens' => ['ExponentPushToken[live]']]]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'no-token']);
+
+        $workspace->broadcasts()->create([
+            'name' => 'Draft', 'channel' => 'push', 'segment_id' => $segment->id,
+            'template_id' => $template->id, 'channel_id' => $channel->id, 'status' => 'draft', 'body' => 'Hello',
+        ]);
+
+        $this->get('/app/broadcasts', $this->authHeaders($workspace, $key))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('broadcasts.0.audience.total', 2)
+                ->where('broadcasts.0.audience.sendable', 1)
+                ->where('broadcasts.0.audience.no_destination', 1)
+            );
     }
 }

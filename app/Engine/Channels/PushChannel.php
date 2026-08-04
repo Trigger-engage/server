@@ -3,6 +3,7 @@
 namespace TriggerEngage\Server\Engine\Channels;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use TriggerEngage\Server\Engine\TemplateRenderer;
@@ -75,6 +76,18 @@ class PushChannel
         return ['message' => $message->refresh(), 'warnings' => $this->renderer->missingVariables()];
     }
 
+    /**
+     * The address a push through this driver would target — null means the
+     * person is unreachable and a send should be SKIPPED, not failed. The
+     * broadcast job uses this so its skip/fail split matches what send() does.
+     */
+    public function destinationFor(Person $person, ?string $driver): ?string
+    {
+        return ($driver ?: 'onesignal') === 'expo'
+            ? $this->describeTokens($this->expoTokens($person))
+            : $this->onesignalAlias($person);
+    }
+
     protected function onesignalAlias(Person $person): ?string
     {
         return ($person->getAttribute('attributes') ?? [])['onesignal_external_id'] ?? $person->external_id;
@@ -119,20 +132,14 @@ class PushChannel
     /** @param array<string, mixed> $credentials */
     protected function deliverViaOnesignal(array $credentials, Message $message, string $externalId, string $subject, string $body): void
     {
-        $response = Http::baseUrl('https://api.onesignal.com')
-            ->withHeaders(['Authorization' => 'Key '.($credentials['api_key'] ?? '')])
-            ->timeout((int) ($credentials['timeout'] ?? 10))
-            ->retry(2, 250, throw: false)
-            ->acceptJson()
-            ->asJson()
-            ->post('/notifications', [
-                'app_id' => $credentials['app_id'] ?? null,
-                'include_aliases' => ['external_id' => [$externalId]],
-                'target_channel' => 'push',
-                'headings' => ['en' => $subject],
-                'contents' => ['en' => $body],
-                'data' => ['trigger_engage_message_id' => $message->id],
-            ]);
+        // OneSignal's newer API tokens authenticate as "Key <token>", legacy
+        // REST keys as "Basic <key>". Try modern first, fall back on an auth
+        // rejection so either key type delivers.
+        $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Key');
+
+        if (in_array($response->status(), [401, 403], true)) {
+            $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Basic');
+        }
 
         $providerId = $response->json('id');
 
@@ -145,6 +152,25 @@ class PushChannel
             'provider_message_id' => (string) $providerId,
             'sent_at' => now(),
         ]);
+    }
+
+    /** @param array<string, mixed> $credentials */
+    protected function onesignalNotify(array $credentials, Message $message, string $externalId, string $subject, string $body, string $scheme): Response
+    {
+        return Http::baseUrl('https://api.onesignal.com')
+            ->withHeaders(['Authorization' => $scheme.' '.($credentials['api_key'] ?? '')])
+            ->timeout((int) ($credentials['timeout'] ?? 10))
+            ->retry(2, 250, throw: false)
+            ->acceptJson()
+            ->asJson()
+            ->post('/notifications', [
+                'app_id' => $credentials['app_id'] ?? null,
+                'include_aliases' => ['external_id' => [$externalId]],
+                'target_channel' => 'push',
+                'headings' => ['en' => $subject],
+                'contents' => ['en' => $body],
+                'data' => ['trigger_engage_message_id' => $message->id],
+            ]);
     }
 
     /**

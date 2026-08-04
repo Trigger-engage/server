@@ -99,11 +99,19 @@ class ChannelConnectionTester
         }
 
         try {
-            $response = Http::baseUrl('https://api.onesignal.com')
-                ->withHeaders(['Authorization' => 'Key '.$credentials['api_key']])
+            $probe = fn (string $scheme) => Http::baseUrl('https://api.onesignal.com')
+                ->withHeaders(['Authorization' => $scheme.' '.$credentials['api_key']])
                 ->timeout((int) ($credentials['timeout'] ?? 10))
                 ->acceptJson()
                 ->get('/notifications', ['app_id' => $credentials['app_id'], 'limit' => 1]);
+
+            // Newer keys authenticate as "Key", legacy REST keys as "Basic" —
+            // accept whichever the stored key actually is, like the sender does.
+            $response = $probe('Key');
+
+            if (in_array($response->status(), [401, 403], true)) {
+                $response = $probe('Basic');
+            }
 
             if ($response->successful()) {
                 return $this->ok('OneSignal app ID and REST API key are valid.');

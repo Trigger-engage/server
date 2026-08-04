@@ -43,7 +43,7 @@ class BroadcastController extends Controller
             'segments' => $workspace->segments()->withCount('people')->orderBy('name')->get(['id', 'public_id', 'name', 'type']),
             'templates' => $workspace->templates()->orderBy('name')->get(['id', 'name', 'channel', 'subject']),
             'channels' => $workspace->channels()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'type', 'driver']),
-            'broadcasts' => $workspace->broadcasts()->with('segment:id,name', 'template:id,name', 'channelConfiguration:id,name')->withCount([
+            'broadcasts' => $workspace->broadcasts()->with('segment:id,name', 'template:id,name', 'channelConfiguration:id,name,driver')->withCount([
                 'recipients', 'recipients as sent_count' => fn ($query) => $query->where('status', 'sent'),
                 'recipients as skipped_count' => fn ($query) => $query->where('status', 'skipped'),
                 'recipients as failed_count' => fn ($query) => $query->where('status', 'failed'),
@@ -257,9 +257,13 @@ class BroadcastController extends Controller
         // resolves attributes.onesignal_external_id ?? external_id (anonymous
         // profiles have a NULL external_id since the anonymous-identity
         // migration, so push CAN lack a destination).
-        $hasDestination = match ($broadcast->channel) {
-            'email' => "(people.email is not null and people.email <> '')",
-            'sms' => "(people.phone is not null and people.phone <> '')",
+        $hasDestination = match (true) {
+            $broadcast->channel === 'email' => "(people.email is not null and people.email <> '')",
+            $broadcast->channel === 'sms' => "(people.phone is not null and people.phone <> '')",
+            // Expo pushes need tokens on the profile; the [0] probe works on
+            // both MySQL and SQLite without dialect-specific length functions.
+            $broadcast->channelConfiguration?->driver === 'expo' => "(json_extract(people.attributes, '$.expo_push_tokens[0]') is not null"
+                ." or json_extract(people.attributes, '$.expo_push_token') is not null)",
             default => "((people.external_id is not null and people.external_id <> '')"
                 ." or json_extract(people.attributes, '$.onesignal_external_id') is not null)",
         };

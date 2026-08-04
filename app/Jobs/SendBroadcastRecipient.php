@@ -44,7 +44,9 @@ class SendBroadcastRecipient implements ShouldQueue
         $address = match ($broadcast->channel) {
             'email' => $person->email,
             'sms' => $person->phone,
-            default => ($person->getAttribute('attributes') ?? [])['onesignal_external_id'] ?? $person->external_id,
+            // Driver-aware: an Expo channel needs tokens on the profile — a
+            // person without them is an expected skip, not a failure.
+            default => $push->destinationFor($person, $broadcast->channelConfiguration?->driver),
         };
         if (blank($address)) {
             $recipient->update(['status' => 'skipped', 'error' => 'Person has no delivery destination.']);

@@ -88,6 +88,16 @@ class MytherapistLifecycleSeeder extends Seeder
             'is_default' => true,
         ]);
 
+        // The Caregiver App registers Expo tokens (synced onto therapist
+        // profiles as expo_push_tokens); therapist-facing push steps pick
+        // this channel. User-facing push stays on OneSignal above.
+        $workspace->channels()->create([
+            'type' => 'push',
+            'driver' => 'expo',
+            'name' => 'Caregiver App push (Expo)',
+            'credentials' => [],
+        ]);
+
         $templates = $this->templates($workspace);
 
         $this->newUserActivation($workspace, $events, $templates, $email);
