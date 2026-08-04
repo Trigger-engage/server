@@ -275,3 +275,14 @@ and merged its timeout paths, and the failed attempts before it rendered no erro
   correlation a republish would have emptied, making any completed step complete every
   pending run). The rewrite covers all 12, each pinned by a test.
 - 18 feature tests (`EditorFidelityTest`); full suite 157 green.
+
+## Mixed-fleet push: Expo skip semantics + OneSignal key compatibility
+
+Shipped 2026-08-03 for the Mytherapist.ng deployment (users on OneSignal, Caregiver App
+therapists on Expo). OneSignal sends and the connection tester now try "Key" auth and
+fall back to "Basic" on 401/403, so legacy REST keys deliver instead of failing every
+send. Broadcast skip semantics are driver-aware via the shared
+`PushChannel::destinationFor()`: an Expo broadcast to a token-less person is an expected
+skip (not a failure), and the pre-send audience preview counts token presence rather
+than external ids. The seeder ships a second push channel ("Caregiver App push (Expo)")
+alongside OneSignal. Suite 159 green.
