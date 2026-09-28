@@ -73,6 +73,11 @@ class EmailChannel
             'error' => null,
         ]);
 
+        // A reply-to lets a template written in a person's voice send replies
+        // somewhere a human reads, without the from address having to be a
+        // mailbox anyone watches.
+        $settings = $template->settings ?? [];
+
         try {
             $this->mailer($channel)
                 ->to($person->email)
@@ -81,6 +86,8 @@ class EmailChannel
                     renderedBody: $body,
                     fromAddress: $template->from_address,
                     fromName: $template->from_name,
+                    replyToAddress: filled($settings['reply_to'] ?? null) ? (string) $settings['reply_to'] : null,
+                    replyToName: filled($settings['reply_to_name'] ?? null) ? (string) $settings['reply_to_name'] : null,
                 ));
 
             $message->update(['status' => 'sent', 'sent_at' => now()]);

@@ -428,4 +428,49 @@ class AutomationEngineTest extends TestCase
         $this->assertDatabaseHas('messages', ['channel' => 'push', 'status' => 'sent', 'provider_message_id' => 'push-123']);
         Http::assertSent(fn ($request) => $request['include_aliases']['external_id'] === ['user-42']);
     }
+
+
+    public function test_onesignal_push_carries_the_template_deep_link_and_data(): void
+    {
+        Http::fake(['api.onesignal.com/*' => Http::response(['id' => 'push-123'])]);
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create([
+            'channel' => 'push', 'name' => 'Push', 'subject' => 'Reminder', 'body' => 'Hi Ada',
+            // Liquid in both, and a reserved key the template cannot override.
+            'settings' => [
+                'url' => 'mytherapistng://book/{{ event.therapist_id }}?source=welcome',
+                'data' => ['campaign' => 'welcome_{{ event.step }}', 'trigger_engage_message_id' => 'spoofed'],
+            ],
+        ]);
+        $channel = $workspace->channels()->create(['type' => 'push', 'driver' => 'onesignal', 'name' => 'OneSignal', 'is_default' => true, 'credentials' => ['app_id' => 'app', 'api_key' => 'key']]);
+        $this->makeAutomation($workspace, 'remind', [
+            'nodes' => [['id' => 'trigger', 'type' => 'trigger', 'config' => []], ['id' => 'send', 'type' => 'send_push', 'config' => ['template_id' => $template->id, 'channel_id' => $channel->id]], ['id' => 'done', 'type' => 'exit', 'config' => []]],
+            'edges' => [['from' => 'trigger', 'to' => 'send'], ['from' => 'send', 'to' => 'done']],
+        ]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42']);
+
+        $this->postJson('/api/v1/events', ['name' => 'remind', 'person_id' => 'user-42', 'data' => ['therapist_id' => 7, 'step' => 'a2']], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        $message = \TriggerEngage\Server\Models\Message::query()->sole();
+        Http::assertSent(fn ($request) => $request['url'] === 'mytherapistng://book/7?source=welcome'
+            && $request['data']['campaign'] === 'welcome_a2'
+            && $request['data']['trigger_engage_message_id'] === $message->id);
+    }
+
+    public function test_onesignal_push_without_a_deep_link_sends_no_url(): void
+    {
+        Http::fake(['api.onesignal.com/*' => Http::response(['id' => 'push-123'])]);
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $workspace->templates()->create(['channel' => 'push', 'name' => 'Push', 'subject' => 'Reminder', 'body' => 'Hi Ada', 'settings' => ['url' => '   ']]);
+        $channel = $workspace->channels()->create(['type' => 'push', 'driver' => 'onesignal', 'name' => 'OneSignal', 'is_default' => true, 'credentials' => ['app_id' => 'app', 'api_key' => 'key']]);
+        $this->makeAutomation($workspace, 'remind', [
+            'nodes' => [['id' => 'trigger', 'type' => 'trigger', 'config' => []], ['id' => 'send', 'type' => 'send_push', 'config' => ['template_id' => $template->id, 'channel_id' => $channel->id]], ['id' => 'done', 'type' => 'exit', 'config' => []]],
+            'edges' => [['from' => 'trigger', 'to' => 'send'], ['from' => 'send', 'to' => 'done']],
+        ]);
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42']);
+
+        $this->postJson('/api/v1/events', ['name' => 'remind', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        Http::assertSent(fn ($request) => ! isset($request['url']) && array_keys($request['data']) === ['trigger_engage_message_id']);
+    }
 }

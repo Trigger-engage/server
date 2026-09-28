@@ -14,6 +14,8 @@ class TemplatedMail extends Mailable
         public string $renderedBody,
         public ?string $fromAddress = null,
         public ?string $fromName = null,
+        public ?string $replyToAddress = null,
+        public ?string $replyToName = null,
     ) {}
 
     public function envelope(): Envelope
@@ -23,6 +25,9 @@ class TemplatedMail extends Mailable
             from: $this->fromAddress
                 ? new Address($this->fromAddress, $this->fromName)
                 : null,
+            replyTo: $this->replyToAddress
+                ? [new Address($this->replyToAddress, $this->replyToName)]
+                : [],
         );
     }
 

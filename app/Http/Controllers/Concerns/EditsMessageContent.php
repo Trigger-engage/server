@@ -58,7 +58,64 @@ trait EditsMessageContent
             'settings.footer_note' => ['nullable', 'string', 'max:1000'],
             'settings.crisis_text' => ['nullable', 'string', 'max:1000'],
             'settings.company_line' => ['nullable', 'string', 'max:255'],
+            // Delivery settings, kept apart from the layout keys above: where a
+            // push tap lands (Liquid allowed, so no url rule), what rides along
+            // with it, and who a reply to an email reaches.
+            'settings.url' => ['nullable', 'string', 'max:2048'],
+            'settings.data' => ['nullable', 'array'],
+            'settings.reply_to' => ['nullable', 'email', 'max:255'],
+            'settings.reply_to_name' => ['nullable', 'string', 'max:150'],
         ];
+    }
+
+    /** Settings keys that describe delivery rather than the email layout. */
+    protected const DELIVERY_SETTINGS = [
+        'email' => ['reply_to', 'reply_to_name'],
+        'push' => ['url', 'data'],
+        'sms' => [],
+    ];
+
+    /**
+     * The delivery settings a channel understands, blanks dropped, so a push
+     * keeps its deep link and an email its reply-to through every save.
+     *
+     * @param  array<string, mixed>|null  $settings
+     * @return array<string, mixed>
+     */
+    protected function deliverySettings(?array $settings, string $channel): array
+    {
+        $kept = [];
+
+        foreach (self::DELIVERY_SETTINGS[$channel] ?? [] as $key) {
+            $value = $settings[$key] ?? null;
+
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+
+            if (blank($value)) {
+                continue;
+            }
+
+            $kept[$key] = $value;
+        }
+
+        return $kept;
+    }
+
+    /**
+     * What the editor is handed: the full layout set for an email (so every
+     * brand control has a value) plus whatever delivery settings are stored.
+     *
+     * @return array<string, mixed>
+     */
+    protected function editorSettings(Template $template): array
+    {
+        $delivery = $this->deliverySettings($template->settings, $template->channel);
+
+        return $template->channel === 'email'
+            ? array_merge($this->layouts->normalizeSettings($template->settings), $delivery)
+            : $delivery;
     }
 
     /**
@@ -69,14 +126,16 @@ trait EditsMessageContent
      */
     protected function normalizedContent(array $data): array
     {
+        $delivery = $this->deliverySettings($data['settings'] ?? null, $data['channel']);
+
         if ($data['channel'] !== 'email') {
-            return [...$data, 'layout' => 'plain', 'preheader' => null, 'settings' => null];
+            return [...$data, 'layout' => 'plain', 'preheader' => null, 'settings' => $delivery ?: null];
         }
 
         return [
             ...$data,
             'layout' => $data['layout'] ?? config('email_templates.default_layout', 'mytherapist'),
-            'settings' => $this->layouts->normalizeSettings($data['settings'] ?? []),
+            'settings' => array_merge($this->layouts->normalizeSettings($data['settings'] ?? []), $delivery),
         ];
     }
 
