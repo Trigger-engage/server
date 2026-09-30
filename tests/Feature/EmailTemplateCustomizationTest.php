@@ -193,4 +193,41 @@ class EmailTemplateCustomizationTest extends TestCase
             && ! str_contains($mail->renderedBody, 'app-store-badge.png')
             && str_contains($mail->renderedBody, '/unsubscribe/'));
     }
+
+
+    public function test_email_send_sets_the_template_reply_to(): void
+    {
+        Mail::fake();
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate($workspace);
+        $template->update(['settings' => ['reply_to' => 'support@mytherapist.ng', 'reply_to_name' => 'Care team']]);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->makeAutomation($workspace, 'customer_sign_up', $this->linearEmailGraph($template, $channel));
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42', 'email' => 'ada@example.com', 'attributes' => ['first_name' => 'Ada']]);
+
+        $this->postJson('/api/v1/events', ['name' => 'customer_sign_up', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        Mail::assertSent(TemplatedMail::class, function (TemplatedMail $mail): bool {
+            $replyTo = $mail->envelope()->replyTo;
+
+            return $mail->replyToAddress === 'support@mytherapist.ng'
+                && count($replyTo) === 1
+                && $replyTo[0]->address === 'support@mytherapist.ng'
+                && $replyTo[0]->name === 'Care team';
+        });
+    }
+
+    public function test_email_send_without_a_reply_to_leaves_the_envelope_alone(): void
+    {
+        Mail::fake();
+        [$workspace, $key] = $this->makeWorkspace();
+        $template = $this->makeEmailTemplate($workspace);
+        $channel = $this->makeLogEmailChannel($workspace);
+        $this->makeAutomation($workspace, 'customer_sign_up', $this->linearEmailGraph($template, $channel));
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42', 'email' => 'ada@example.com']);
+
+        $this->postJson('/api/v1/events', ['name' => 'customer_sign_up', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        Mail::assertSent(TemplatedMail::class, fn (TemplatedMail $mail) => $mail->replyToAddress === null && $mail->envelope()->replyTo === []);
+    }
 }

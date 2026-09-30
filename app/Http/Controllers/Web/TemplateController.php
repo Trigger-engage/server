@@ -50,7 +50,7 @@ class TemplateController extends Controller
     {
         $workspace = $request->attributes->get('workspace');
         $this->ensureWorkspaceOwns($workspace->id, $template);
-        $template->settings = $this->layouts->normalizeSettings($template->settings);
+        $template->settings = $this->editorSettings($template);
 
         return Inertia::render('Templates/Edit', [
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),

@@ -82,7 +82,9 @@ class BroadcastController extends Controller
         $workspace = $request->attributes->get('workspace');
         abort_unless($broadcast->workspace_id === $workspace->id, 404);
         $broadcast->load('segment:id,name', 'template:id,name', 'channelConfiguration:id,name,driver');
-        $broadcast->settings = $broadcast->channel === 'email' ? $this->layouts->normalizeSettings($broadcast->settings) : $broadcast->settings;
+        $broadcast->settings = $broadcast->channel === 'email'
+            ? array_merge($this->layouts->normalizeSettings($broadcast->settings), $this->deliverySettings($broadcast->settings, 'email'))
+            : $broadcast->settings;
 
         return Inertia::render('Broadcasts/Edit', [
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),

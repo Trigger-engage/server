@@ -286,3 +286,73 @@ send. Broadcast skip semantics are driver-aware via the shared
 skip (not a failure), and the pre-send audience preview counts token presence rather
 than external ids. The seeder ships a second push channel ("Caregiver App push (Expo)")
 alongside OneSignal. Suite 159 green.
+
+## Push deep links, email reply-to, delivery settings that survive the editor
+
+Shipped 2026-09-27 for the Mytherapist.ng "Letters from Ify" journeys. A push template
+can now carry `settings.url` (the deep link the tap opens; OneSignal `url`, Expo
+`data.url`) and `settings.data` (extra key/values merged under the reserved message-id
+key). Both render through Liquid, so a journey can point at the therapist in the
+trigger payload: `mytherapistng://book/{{ event.therapist_id }}`. An email template can
+carry `settings.reply_to` / `settings.reply_to_name`, set on the envelope by
+`TemplatedMail`, so a message written in a person's voice can send replies to a
+mailbox a human reads. `EditsMessageContent` keeps these delivery keys apart from the
+layout keys: validated, blanks dropped, preserved on every save (non-email templates
+used to be normalised to `settings = null`, which would have wiped a deep link on the
+first edit), and handed back to the editor via `editorSettings()`. The composer gained a
+"Where the tap goes" panel for push and reply-to fields under the sender override;
+`dist/build` rebuilt with `npm run build:package`. Six new feature tests; suite 165 green.
+
+### Letters from Ify: the two journeys, seeded
+
+**Bottom line:** `IfyJourneysSeeder` publishes the welcome (both tracks) and the
+after-first-session journeys with Ify's copy, pauses the two unsigned journeys
+they replace, and gates entry behind a 5/95 canary split. Nothing sends until
+the workspace's email channel leaves the `log` driver and OneSignal has keys.
+
+- **Why.** The approved "Letters from Ify" sequences needed to exist as graphs
+  the embedded engine runs, not as a page. The seeder is the deploy artefact:
+  `php artisan db:seed --class=IfyJourneysSeeder` on the droplet, after
+  `MytherapistLifecycleSeeder` (it reuses that workspace and channels).
+- **Shape.** Welcome: `user_registered`, once ever → 15-min settle → `split`
+  (send 5 / hold 95, deterministic per person) → `person.email_communication
+  equals true` gate → `person.onboarding_intent equals self_help` picks the
+  tools track, everything else the therapy track. Seven messages over
+  fourteen days, emails at 10:00 and pushes at 12:30 Lagos, each step a relative
+  delay plus an `until_time` node (that node snaps to the *next* wall-clock
+  time, so a 12:30 push followed by "1 day + 10:00" lands two days later — the
+  delays are sized for that). Track B's Prime steps sit behind an
+  `email_marketing` gate. Goals: `appointment_booked`, `prime_subscribed`.
+  After first session: `first_session_completed`, once ever → canary → gate →
+  +3 h email → day 2 10:00 branch on `person.first_session_rating` (gte 4 →
+  rebook track, exists → switch track, else the unrated blend). Goals:
+  `next_session_booked`, `appointment_booked`, `session_invitation_sent`,
+  `wellness_step_completed`.
+- **Templates.** 25, named `Ify · …`: 14 emails from "Ify from Mytherapist.ng"
+  <care@> with Reply-To support@ and the pen-name line in the footer note; 11
+  pushes each with a `settings.url` deep link, titles ≤ 10 words, bodies ≤ 120
+  characters, no therapist names on a lock screen. Liquid conditionals carry the
+  sponsored and student lines. Re-runs never overwrite edited copy.
+- **Two CRM hooks the graphs depend on.** `first_session_rating` is now an
+  identify trait (first star rating, synced the moment the first review lands)
+  so the day-2 branch reads the person instead of racing an event wait; and
+  `prime_subscribed` fires from `PrimeSubscriptionService` on a new membership
+  (checkout with welcome, invite, reward creation — never a renewal or a family
+  extension) followed by a sync so `has_prime` is fresh.
+- **Package.** Needs `trigger-engage/server` with push deep links, reply-to and
+  delivery settings that survive the editor (its PROGRESS, 2026-09-27); the
+  vendor copy here was patched by hand to run the tests until that lands via
+  `composer update trigger-engage/server -w -m`.
+- **Tests.** `IfyJourneysSeederTest`: both journeys active with the right
+  triggers and the retired ones paused; every edge, branch label, split
+  variant, template and goal resolves; every email replies to support and every
+  push has a deep link within budget; the branches evaluate the intended
+  attributes; the conditional lines and the rebooking deep link render; a
+  re-run adds nothing; and one real welcome through the embedded engine sends
+  Ify's first email on the tools track fifteen minutes after `user_registered`
+  while a held-back person gets nothing. CRM tests cover the rating trait and
+  the Prime event.
+
+**Needs:** the package release, `vendor:publish --tag=trigger-engage-assets
+--force`, the email channel on SMTP with ZeptoMail credentials,
+`engage:setup-push`, both backfills, then republish the split at 90/10.

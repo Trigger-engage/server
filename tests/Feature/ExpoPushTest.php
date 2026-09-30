@@ -300,4 +300,23 @@ class ExpoPushTest extends TestCase
                 ->where('broadcasts.0.audience.no_destination', 1)
             );
     }
+
+
+    public function test_expo_push_carries_the_deep_link_and_data_inside_data(): void
+    {
+        Http::fake(['exp.host/*' => Http::response(['data' => [['status' => 'ok', 'id' => 'ticket-1']]])]);
+        [$workspace, $key] = $this->makeWorkspace();
+        [$template] = $this->makeExpoAutomation($workspace);
+        $template->update(['settings' => ['url' => 'mytherapistng://breathe', 'data' => ['campaign' => 'welcome']]]);
+
+        Person::create(['workspace_id' => $workspace->id, 'external_id' => 'user-42', 'attributes' => [
+            'expo_push_tokens' => ['ExponentPushToken[aaaa]'],
+        ]]);
+
+        $this->postJson('/api/v1/events', ['name' => 'remind', 'person_id' => 'user-42'], $this->authHeaders($workspace, $key))->assertAccepted();
+
+        Http::assertSent(fn ($request) => $request[0]['data']['url'] === 'mytherapistng://breathe'
+            && $request[0]['data']['campaign'] === 'welcome'
+            && isset($request[0]['data']['trigger_engage_message_id']));
+    }
 }

@@ -43,6 +43,12 @@ class PushChannel
         $this->renderer->reset();
         $subject = $this->renderer->render($template->subject ?? '', $context);
         $body = $this->renderer->render($template->body, $context);
+        // Where the tap lands and what rides along with it, both Liquid so a
+        // journey can point at the therapist or appointment in the trigger
+        // payload: mytherapistng://book/{{ event.therapist_id }}.
+        $settings = $template->settings ?? [];
+        $url = $this->renderDeepLink($settings['url'] ?? null, $context);
+        $data = $this->renderData($settings['data'] ?? null, $context);
         $credentials = $channel->credentials ?? [];
         $message ??= Message::query()->firstOrCreate(
             ['run_step_id' => $step?->id],
@@ -66,8 +72,8 @@ class PushChannel
 
         try {
             match ($driver) {
-                'expo' => $this->deliverViaExpo($credentials, $message, $person, $tokens, $subject, $body),
-                default => $this->deliverViaOnesignal($credentials, $message, $address, $subject, $body),
+                'expo' => $this->deliverViaExpo($credentials, $message, $person, $tokens, $subject, $body, $url, $data),
+                default => $this->deliverViaOnesignal($credentials, $message, $address, $subject, $body, $url, $data),
             };
         } catch (\Throwable $exception) {
             $message->update(['status' => 'failed', 'error' => $exception->getMessage()]);
@@ -129,16 +135,19 @@ class PushChannel
         return count($tokens) === 1 ? $tokens[0] : $tokens[0].' +'.(count($tokens) - 1).' more';
     }
 
-    /** @param array<string, mixed> $credentials */
-    protected function deliverViaOnesignal(array $credentials, Message $message, string $externalId, string $subject, string $body): void
+    /**
+     * @param  array<string, mixed>  $credentials
+     * @param  array<string, mixed>  $data
+     */
+    protected function deliverViaOnesignal(array $credentials, Message $message, string $externalId, string $subject, string $body, ?string $url = null, array $data = []): void
     {
         // OneSignal's newer API tokens authenticate as "Key <token>", legacy
         // REST keys as "Basic <key>". Try modern first, fall back on an auth
         // rejection so either key type delivers.
-        $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Key');
+        $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Key', $url, $data);
 
         if (in_array($response->status(), [401, 403], true)) {
-            $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Basic');
+            $response = $this->onesignalNotify($credentials, $message, $externalId, $subject, $body, 'Basic', $url, $data);
         }
 
         $providerId = $response->json('id');
@@ -154,8 +163,11 @@ class PushChannel
         ]);
     }
 
-    /** @param array<string, mixed> $credentials */
-    protected function onesignalNotify(array $credentials, Message $message, string $externalId, string $subject, string $body, string $scheme): Response
+    /**
+     * @param  array<string, mixed>  $credentials
+     * @param  array<string, mixed>  $data
+     */
+    protected function onesignalNotify(array $credentials, Message $message, string $externalId, string $subject, string $body, string $scheme, ?string $url = null, array $data = []): Response
     {
         return Http::baseUrl('https://api.onesignal.com')
             ->withHeaders(['Authorization' => $scheme.' '.($credentials['api_key'] ?? '')])
@@ -163,14 +175,18 @@ class PushChannel
             ->retry(2, 250, throw: false)
             ->acceptJson()
             ->asJson()
-            ->post('/notifications', [
+            ->post('/notifications', array_filter([
                 'app_id' => $credentials['app_id'] ?? null,
                 'include_aliases' => ['external_id' => [$externalId]],
                 'target_channel' => 'push',
                 'headings' => ['en' => $subject],
                 'contents' => ['en' => $body],
-                'data' => ['trigger_engage_message_id' => $message->id],
-            ]);
+                // OneSignal opens `url` in the app when it is the app's own
+                // scheme and in the browser otherwise; absent, the tap just
+                // opens the app.
+                'url' => $url,
+                'data' => array_merge($data, ['trigger_engage_message_id' => $message->id]),
+            ], fn ($value) => $value !== null));
     }
 
     /**
@@ -181,8 +197,9 @@ class PushChannel
      *
      * @param  array<string, mixed>  $credentials
      * @param  array<int, string>  $tokens
+     * @param  array<string, mixed>  $data
      */
-    protected function deliverViaExpo(array $credentials, Message $message, Person $person, array $tokens, string $subject, string $body): void
+    protected function deliverViaExpo(array $credentials, Message $message, Person $person, array $tokens, string $subject, string $body, ?string $url = null, array $data = []): void
     {
         $response = $this->expoClient($credentials)
             ->retry(2, 250, throw: false)
@@ -193,7 +210,8 @@ class PushChannel
                 'sound' => $credentials['sound'] ?? 'default',
                 'priority' => $credentials['priority'] ?? 'high',
                 'channelId' => $credentials['android_channel_id'] ?? null,
-                'data' => ['trigger_engage_message_id' => $message->id],
+                // Expo has no launch URL of its own; the app reads it off `data`.
+                'data' => array_merge($data, array_filter(['url' => $url]), ['trigger_engage_message_id' => $message->id]),
             ], fn ($value) => $value !== null), $tokens));
 
         // A top-level `errors` array means the whole request was rejected
@@ -238,6 +256,49 @@ class PushChannel
             'error' => $rejections === [] ? null : 'Partially delivered — '.implode('; ', $rejections),
             'sent_at' => now(),
         ]);
+    }
+
+    /**
+     * The template's deep link, rendered through Liquid. Blank means none.
+     */
+    protected function renderDeepLink(mixed $url, array $context): ?string
+    {
+        if (! is_string($url) || trim($url) === '') {
+            return null;
+        }
+
+        $rendered = trim($this->renderer->render($url, $context));
+
+        return $rendered === '' ? null : $rendered;
+    }
+
+    /**
+     * Extra key/value data for the app. Accepts an object or a JSON string of
+     * one (older templates saved it as text); string values are rendered so
+     * a campaign name can carry event fields. The message id key is reserved.
+     *
+     * @return array<string, mixed>
+     */
+    protected function renderData(mixed $data, array $context): array
+    {
+        if (is_string($data)) {
+            $decoded = json_decode($data, true);
+            $data = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $rendered = [];
+
+        foreach ($data as $key => $value) {
+            $rendered[(string) $key] = is_string($value) ? $this->renderer->render($value, $context) : $value;
+        }
+
+        unset($rendered['trigger_engage_message_id']);
+
+        return $rendered;
     }
 
     /** @param array<string, mixed> $credentials */
