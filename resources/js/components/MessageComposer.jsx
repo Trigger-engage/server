@@ -45,6 +45,19 @@ export default function MessageComposer({
 
     const updateSetting = (key, value) => setField('settings', { ...settings, [key]: value });
 
+    const isPush = channel === 'push';
+    // Extra push data is typed as JSON and stored as an object once it parses.
+    const [dataText, setDataText] = useState(() => (settings.data && typeof settings.data === 'object' ? JSON.stringify(settings.data, null, 2) : ''));
+    const [dataError, setDataError] = useState('');
+    const updateDataText = (text) => {
+        setDataText(text);
+        if (text.trim() === '') { setDataError(''); updateSetting('data', null); return; }
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) { setDataError(''); updateSetting('data', parsed); } else { setDataError('Extra data must be a JSON object, like {"campaign": "welcome"}.'); }
+        } catch { setDataError('Not valid JSON yet.'); }
+    };
+
     const previewPayload = useMemo(() => JSON.stringify({
         channel,
         name: name || 'Untitled message',
@@ -123,7 +136,9 @@ export default function MessageComposer({
                 </section>
             </>}
 
-            {isEmail && <section className={panelClass}><h2 className="text-lg font-semibold">Sender override</h2><p className="mt-1 text-sm text-slate-500">Leave blank to use the delivery channel defaults.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="From name"><input className={inputClass} value={data.from_name ?? ''} onChange={(e) => setField('from_name', e.target.value)} /></Field><Field label="From email"><input type="email" className={inputClass} value={data.from_address ?? ''} onChange={(e) => setField('from_address', e.target.value)} /></Field></div></section>}
+            {isPush && <section className={panelClass}><h2 className="text-lg font-semibold">Where the tap goes</h2><p className="mt-1 text-sm text-slate-500">A deep link the app opens when the notification is tapped. Liquid works here too, so a journey can point at the person in the event: mytherapistng://book/{'{{ event.therapist_id }}'}. Leave blank to open the app on its home screen.</p><div className="mt-5 grid gap-4"><Field label="Deep link"><input className={inputClass} value={settings.url ?? ''} onChange={(e) => updateSetting('url', e.target.value)} placeholder="mytherapistng://therapists?openTio=1" /></Field><Field label="Extra data (JSON object)"><textarea rows="3" className={`${inputClass} font-mono text-xs leading-6`} value={dataText} onChange={(e) => updateDataText(e.target.value)} placeholder='{"campaign": "welcome"}' /></Field>{dataError && <p className="text-xs text-amber-200">{dataError}</p>}</div><FieldError message={errors['settings.url'] || errors['settings.data']} /></section>}
+
+            {isEmail && <section className={panelClass}><h2 className="text-lg font-semibold">Sender override</h2><p className="mt-1 text-sm text-slate-500">Leave blank to use the delivery channel defaults. A reply-to sends replies somewhere a person reads, so the from address need not be a watched mailbox.</p><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="From name"><input className={inputClass} value={data.from_name ?? ''} onChange={(e) => setField('from_name', e.target.value)} /></Field><Field label="From email"><input type="email" className={inputClass} value={data.from_address ?? ''} onChange={(e) => setField('from_address', e.target.value)} /></Field><Field label="Reply-to email"><input type="email" className={inputClass} value={settings.reply_to ?? ''} onChange={(e) => updateSetting('reply_to', e.target.value)} placeholder="support@mytherapist.ng" /></Field><Field label="Reply-to name"><input className={inputClass} value={settings.reply_to_name ?? ''} onChange={(e) => updateSetting('reply_to_name', e.target.value)} /></Field></div><FieldError message={errors['settings.reply_to'] || errors['settings.reply_to_name']} /></section>}
 
             {typeof footer === 'function' ? footer({ previewError, previewing }) : footer}
         </fieldset>

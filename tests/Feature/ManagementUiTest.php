@@ -270,4 +270,47 @@ class ManagementUiTest extends TestCase
                 ->where('automation.goal.trigger_field', 'care_plan_id')
             );
     }
+
+
+    /**
+     * A push template's deep link and an email's reply-to are not layout
+     * settings; the editor must hand them back and every save must keep them.
+     */
+    public function test_delivery_settings_survive_the_template_editor(): void
+    {
+        [$workspace, $key] = $this->makeWorkspace();
+        $headers = $this->authHeaders($workspace, $key);
+
+        $this->post('/app/templates', ['channel' => 'push', 'name' => 'Nudge', 'subject' => 'Hello', 'body' => 'Tap me'], $headers)->assertRedirect();
+        $push = $workspace->templates()->sole();
+
+        $this->put('/app/templates/'.$push->id, [
+            'channel' => 'push', 'name' => 'Nudge', 'subject' => 'Hello', 'body' => 'Tap me',
+            'settings' => ['url' => '  mytherapistng://therapists?openTio=1  ', 'data' => ['campaign' => 'welcome'], 'brand_name' => 'not a push setting'],
+        ], $headers)->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(['url' => 'mytherapistng://therapists?openTio=1', 'data' => ['campaign' => 'welcome']], $push->fresh()->settings);
+        $this->get('/app/templates/'.$push->id.'/edit', $headers)
+            ->assertInertia(fn (Assert $page) => $page->where('template.settings.url', 'mytherapistng://therapists?openTio=1'));
+
+        $this->post('/app/templates', ['channel' => 'email', 'name' => 'Welcome', 'subject' => 'Hi', 'body' => '<p>Hi</p>'], $headers)->assertRedirect();
+        $email = $workspace->templates()->where('channel', 'email')->sole();
+
+        $this->put('/app/templates/'.$email->id, [
+            'channel' => 'email', 'name' => 'Welcome', 'subject' => 'Hi', 'body' => '<p>Hi</p>',
+            'settings' => ['reply_to' => 'support@mytherapist.ng', 'reply_to_name' => 'Care team'],
+        ], $headers)->assertRedirect()->assertSessionHasNoErrors();
+
+        $settings = $email->fresh()->settings;
+        $this->assertSame('support@mytherapist.ng', $settings['reply_to']);
+        $this->assertSame('Care team', $settings['reply_to_name']);
+        $this->assertArrayHasKey('accent_color', $settings, 'Layout settings must still be filled in beside the delivery ones.');
+        $this->get('/app/templates/'.$email->id.'/edit', $headers)
+            ->assertInertia(fn (Assert $page) => $page->where('template.settings.reply_to', 'support@mytherapist.ng'));
+
+        $this->put('/app/templates/'.$email->id, [
+            'channel' => 'email', 'name' => 'Welcome', 'subject' => 'Hi', 'body' => '<p>Hi</p>',
+            'settings' => ['reply_to' => 'not-an-address'],
+        ], $headers)->assertSessionHasErrors(['settings.reply_to']);
+    }
 }
