@@ -286,3 +286,14 @@ send. Broadcast skip semantics are driver-aware via the shared
 skip (not a failure), and the pre-send audience preview counts token presence rather
 than external ids. The seeder ships a second push channel ("Caregiver App push (Expo)")
 alongside OneSignal. Suite 159 green.
+
+## Until-time delays follow the host application's clock
+
+Fixed 2026-09-30. `RunEngine::wakeAt()` returned an until-time target converted to UTC,
+while `engage:tick` compares `wake_at` against `now()` in the host app's timezone. On a
+UTC host that is the same instant; on Mytherapist.ng (Africa/Lagos) every 10:00 email and
+12:30 push left at 09:00 and 11:30. The target is now converted to `config('app.timezone')`,
+so a Lagos host stores 12:30 and wakes at 12:30, and a UTC host embedding a Lagos workspace
+still stores 11:30. Surfaced by a mock-environment run of the Letters from Ify journeys
+(real MySQL, real queue worker, MailHog, faked OneSignal). Three tests in
+`UntilTimeHostTimezoneTest` (two fail without the fix); suite 162 green.

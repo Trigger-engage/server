@@ -530,6 +530,12 @@ class RunEngine
      * Returns CarbonInterface, not Carbon: an embedding host may have called
      * Date::use(CarbonImmutable::class), which makes now() immutable — and the
      * addDay() below a no-op unless its result is reassigned.
+     *
+     * An until-time is a wall-clock target in the WORKSPACE timezone, but it is
+     * stored and compared (engage:tick's `wake_at <= now()`) in the HOST app's
+     * timezone, which is whatever config('app.timezone') says — not necessarily
+     * UTC. Converting to UTC here made every until-time fire early by the
+     * host's offset when the embedding app ran on, say, Africa/Lagos.
      */
     protected function wakeAt(array $config, AutomationRun $run): CarbonInterface
     {
@@ -541,7 +547,7 @@ class RunEngine
                 $target = $target->addDay();
             }
 
-            return $target->utc();
+            return $target->setTimezone(config('app.timezone', 'UTC'));
         }
 
         return now()
