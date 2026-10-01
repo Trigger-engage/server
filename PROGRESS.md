@@ -287,6 +287,39 @@ skip (not a failure), and the pre-send audience preview counts token presence ra
 than external ids. The seeder ships a second push channel ("Caregiver App push (Expo)")
 alongside OneSignal. Suite 159 green.
 
+## Runs survive a lost advance job
+
+Fixed 2026-10-01. A run is `running` only while a worker walks it, but nothing ever
+looked at one that stayed `running`. `AdvanceAutomationRun` drops itself when its
+WithoutOverlapping lock is refused (`dontRelease()`), and `engage:tick` only woke
+`waiting` runs, so a lost job stranded its run for good. On Mytherapist.ng the
+production cache store was dropping writes: every run since setup sat on its trigger,
+thousands of them, and nothing was sent. `engage:tick` now re-dispatches runs left
+`running` and idle for 15 minutes (past the lock's 10-minute expiry), at most 500 a
+tick. Each attempt is claimed in a new `automation_runs.recovery_attempted_at` column
+and not repeated within the same idle period, so a backed-up queue rotates through the
+backlog instead of stacking duplicate jobs on the lowest ids. `updated_at` is left
+alone, because it drives the give-up deadline. It skips runs with a `processing` send, which the existing reconciliation
+settles against the message ledger. A run idle for more than 72 hours is failed with
+a reason in `context.failure` instead of sending days late. All three are
+configurable under `stalled_runs`. `AdvanceAutomationRun::failed()` fails its run
+with the exception message once the queue gives up (on the sync queue, the first
+exception). The tick catches and reports per run, so one broken run no longer stops
+the sweep for everyone after it. The run page shows `context.failure`; `dist/build`
+was rebuilt.
+
+Resuming runs exposed a second gap, found in review. Delay, branch, segment and split
+nodes recorded their step and then updated the run in two separate writes, and on
+re-advance a node with a step record was simply walked past. A worker that died
+between the writes left a delay that would be skipped (a three-hour wait sent after
+15 minutes) or a branch whose answer was lost (no labelled edge matches, so the run
+ended silently). `RunEngine::checkpoint()` now writes both in one transaction, and
+`resumeFromStep()` restores a half-written node from its step: a delay re-parks until
+the wake time it recorded, and a branch, segment or split gets its recorded answer
+back. `StalledRunRecoveryTest` has nine tests (eight fail without the fix), run on
+SQLite and on MySQL 9.5; suite 177 green on SQLite. On MySQL, 8 older tests in
+audience preview, broadcast composer and attribute order fail, on `main` too.
+
 ## Until-time delays follow the host application's clock
 
 Fixed 2026-09-30. `RunEngine::wakeAt()` returned an until-time target converted to UTC,

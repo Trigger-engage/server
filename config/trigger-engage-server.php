@@ -23,4 +23,15 @@ return [
     ],
 
     'assets_build_directory' => env('TRIGGER_ENGAGE_ASSET_DIRECTORY', $embedded ? 'vendor/trigger-engage/build' : 'build'),
+
+    // A run is `running` only while a worker walks it. One still `running`
+    // long after that lost its advance job, and engage:tick picks it up again:
+    // after `after_minutes` idle it is re-dispatched (up to `per_tick` a
+    // minute), and once idle for `give_up_after_hours` it is failed instead,
+    // because its next message would arrive too late to make sense.
+    'stalled_runs' => [
+        'after_minutes' => (int) env('TRIGGER_ENGAGE_STALLED_RUN_AFTER_MINUTES', 15),
+        'give_up_after_hours' => (int) env('TRIGGER_ENGAGE_STALLED_RUN_GIVE_UP_HOURS', 72),
+        'per_tick' => (int) env('TRIGGER_ENGAGE_STALLED_RUNS_PER_TICK', 500),
+    ],
 ];
