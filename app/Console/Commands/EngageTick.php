@@ -26,7 +26,7 @@ class EngageTick extends Command
     public function handle(EventWaitManager $eventWaits, SegmentManager $segments): int
     {
         $this->recoverStaleSendReservations();
-        [$resumed, $abandoned] = $this->resumeStalledRuns();
+        [$redispatched, $abandoned] = $this->resumeStalledRuns();
         $this->cancelFinishedGoalSubscriptions();
         $this->collectExpoPushReceipts();
 
@@ -52,7 +52,7 @@ class EngageTick extends Command
             $this->isolated(fn () => $eventWaits->resolveTimeout((int) $waitId));
         }
 
-        $this->info("Woke {$due->count()} delayed run(s), resolved {$dueEventWaits->count()} event wait(s), resumed {$resumed} stalled run(s), gave up on {$abandoned}, recomputed {$recomputedSegments} rule segment(s).");
+        $this->info("Woke {$due->count()} delayed run(s), resolved {$dueEventWaits->count()} event wait(s), re-dispatched {$redispatched} stalled run(s), gave up on {$abandoned}, recomputed {$recomputedSegments} rule segment(s).");
 
         return self::SUCCESS;
     }
@@ -66,7 +66,12 @@ class EngageTick extends Command
      * again, because the due-run sweep only wakes `waiting` runs.
      *
      * Re-dispatching is safe: the job takes the same lock, so a run that is in
-     * fact still moving keeps a single walker. Runs with a send in flight are
+     * fact still moving keeps a single walker. Each attempt is claimed in
+     * recovery_attempted_at and not repeated for the same idle period, so a
+     * backed-up queue or a lock store still refusing locks does not pile up
+     * duplicate jobs for the lowest ids while later runs wait their turn.
+     * That column, not updated_at, records the attempts: updated_at must keep
+     * saying when the run last moved. Runs with a send in flight are
      * left to recoverStaleSendReservations(), which checks the message ledger
      * before anything could send twice. A run stalled for longer than the
      * give-up window is failed with a reason instead: a "you didn't finish
@@ -101,13 +106,25 @@ class EngageTick extends Command
                 ]);
         }
 
-        $resumed = 0;
+        $notAttemptedSince = fn ($query) => $query
+            ->whereNull('recovery_attempted_at')
+            ->orWhere('recovery_attempted_at', '<=', $idleSince);
+        $redispatched = 0;
 
-        foreach ($stalled()->where('updated_at', '>=', $giveUpBefore)->orderBy('id')->limit($perTick)->pluck('id') as $runId) {
-            $resumed += $this->isolated(fn () => Bus::dispatch(new AdvanceAutomationRun($runId))) ? 1 : 0;
+        foreach ($stalled()->where('updated_at', '>=', $giveUpBefore)->where($notAttemptedSince)->orderBy('id')->limit($perTick)->pluck('id') as $runId) {
+            // toBase(): an Eloquent update would also stamp updated_at.
+            $claimed = AutomationRun::query()->toBase()
+                ->where('id', $runId)
+                ->where('status', AutomationRun::STATUS_RUNNING)
+                ->where($notAttemptedSince)
+                ->update(['recovery_attempted_at' => now()]);
+
+            if ($claimed && $this->isolated(fn () => Bus::dispatch(new AdvanceAutomationRun($runId)))) {
+                $redispatched++;
+            }
         }
 
-        return [$resumed, $abandoned];
+        return [$redispatched, $abandoned];
     }
 
     /**

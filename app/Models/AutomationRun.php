@@ -44,6 +44,7 @@ class AutomationRun extends Model
 
     protected $casts = [
         'wake_at' => 'datetime',
+        'recovery_attempted_at' => 'datetime',
         'context' => 'array',
     ];
 

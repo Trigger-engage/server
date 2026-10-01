@@ -296,7 +296,10 @@ WithoutOverlapping lock is refused (`dontRelease()`), and `engage:tick` only wok
 production cache store was dropping writes: every run since setup sat on its trigger,
 thousands of them, and nothing was sent. `engage:tick` now re-dispatches runs left
 `running` and idle for 15 minutes (past the lock's 10-minute expiry), at most 500 a
-tick. It skips runs with a `processing` send, which the existing reconciliation
+tick. Each attempt is claimed in a new `automation_runs.recovery_attempted_at` column
+and not repeated within the same idle period, so a backed-up queue rotates through the
+backlog instead of stacking duplicate jobs on the lowest ids. `updated_at` is left
+alone, because it drives the give-up deadline. It skips runs with a `processing` send, which the existing reconciliation
 settles against the message ledger. A run idle for more than 72 hours is failed with
 a reason in `context.failure` instead of sending days late. All three are
 configurable under `stalled_runs`. `AdvanceAutomationRun::failed()` fails its run
@@ -313,8 +316,8 @@ between the writes left a delay that would be skipped (a three-hour wait sent af
 ended silently). `RunEngine::checkpoint()` now writes both in one transaction, and
 `resumeFromStep()` restores a half-written node from its step: a delay re-parks until
 the wake time it recorded, and a branch, segment or split gets its recorded answer
-back. `StalledRunRecoveryTest` has eight tests (seven fail without the fix), run on
-SQLite and on MySQL 9.5; suite 176 green on SQLite. On MySQL, 8 older tests in
+back. `StalledRunRecoveryTest` has nine tests (eight fail without the fix), run on
+SQLite and on MySQL 9.5; suite 177 green on SQLite. On MySQL, 8 older tests in
 audience preview, broadcast composer and attribute order fail, on `main` too.
 
 ## Until-time delays follow the host application's clock

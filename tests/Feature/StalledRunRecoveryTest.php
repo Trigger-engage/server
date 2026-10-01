@@ -60,10 +60,17 @@ class StalledRunRecoveryTest extends TestCase
         $this->artisan('engage:tick')->assertSuccessful();
         $this->assertSame('trigger', $run->refresh()->current_node_id, 'While the store still refuses locks, the retry is dropped too, harmlessly.');
 
+        // The dropped attempt is not repeated every minute: the next one comes
+        // a full idle period later, by which time the store grants locks.
         $this->grantCacheLocks();
         $this->travel(1)->minutes();
         $this->artisan('engage:tick')
-            ->expectsOutputToContain('resumed 1 stalled run(s)')
+            ->expectsOutputToContain('re-dispatched 0 stalled run(s)')
+            ->assertSuccessful();
+
+        $this->travel(15)->minutes();
+        $this->artisan('engage:tick')
+            ->expectsOutputToContain('re-dispatched 1 stalled run(s)')
             ->assertSuccessful();
 
         $this->assertSame(AutomationRun::STATUS_COMPLETED, $run->refresh()->status);
@@ -84,6 +91,38 @@ class StalledRunRecoveryTest extends TestCase
         $this->travel(1)->minutes();
         $this->artisan('engage:tick')->assertSuccessful();
         Queue::assertPushed(AdvanceAutomationRun::class, fn (AdvanceAutomationRun $job) => $job->runId === $run->id);
+    }
+
+    /**
+     * Dispatching changes nothing on a run, so while the queue is backed up
+     * or the lock store still refuses locks the same rows stay eligible. The
+     * attempt is claimed so the backlog rotates instead of piling duplicate
+     * jobs onto the lowest ids, and the claim leaves updated_at, the clock
+     * for the give-up deadline, alone.
+     */
+    public function test_a_backlog_rotates_instead_of_redispatching_the_same_runs(): void
+    {
+        config(['trigger-engage-server.stalled_runs.per_tick' => 1]);
+        $this->refuseCacheLocks();
+        $runs = [$this->signUp('user-1'), $this->signUp('user-2'), $this->signUp('user-3')];
+        $stuckSince = $runs[0]->updated_at;
+        $this->grantCacheLocks();
+        Queue::fake();
+
+        $this->travel(16)->minutes();
+        foreach (range(1, 3) as $tick) {
+            $this->artisan('engage:tick')->assertSuccessful();
+            $this->travel(1)->minutes();
+        }
+        $this->travel(13)->minutes();
+        $this->artisan('engage:tick')->assertSuccessful();
+
+        $this->assertSame(
+            [$runs[0]->id, $runs[1]->id, $runs[2]->id, $runs[0]->id],
+            Queue::pushed(AdvanceAutomationRun::class)->map(fn (AdvanceAutomationRun $job) => $job->runId)->values()->all(),
+            'Each run gets one attempt per idle period, in turn.'
+        );
+        $this->assertTrue($runs[0]->refresh()->updated_at->equalTo($stuckSince));
     }
 
     public function test_a_run_with_a_send_in_flight_is_left_to_the_send_reconciliation(): void
