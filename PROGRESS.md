@@ -303,9 +303,19 @@ configurable under `stalled_runs`. `AdvanceAutomationRun::failed()` fails its ru
 with the exception message once the queue gives up (on the sync queue, the first
 exception). The tick catches and reports per run, so one broken run no longer stops
 the sweep for everyone after it. The run page shows `context.failure`; `dist/build`
-was rebuilt. `StalledRunRecoveryTest` adds six tests (five fail without the fix),
-run on SQLite and on MySQL 9.5; suite 174 green on SQLite. On MySQL, 8 older tests
-in audience preview, broadcast composer and attribute order fail, on `main` too.
+was rebuilt.
+
+Resuming runs exposed a second gap, found in review. Delay, branch, segment and split
+nodes recorded their step and then updated the run in two separate writes, and on
+re-advance a node with a step record was simply walked past. A worker that died
+between the writes left a delay that would be skipped (a three-hour wait sent after
+15 minutes) or a branch whose answer was lost (no labelled edge matches, so the run
+ended silently). `RunEngine::checkpoint()` now writes both in one transaction, and
+`resumeFromStep()` restores a half-written node from its step: a delay re-parks until
+the wake time it recorded, and a branch, segment or split gets its recorded answer
+back. `StalledRunRecoveryTest` has eight tests (seven fail without the fix), run on
+SQLite and on MySQL 9.5; suite 176 green on SQLite. On MySQL, 8 older tests in
+audience preview, broadcast composer and attribute order fail, on `main` too.
 
 ## Until-time delays follow the host application's clock
 

@@ -176,16 +176,116 @@ class StalledRunRecoveryTest extends TestCase
         Mail::assertSent(TemplatedMail::class, 1);
     }
 
+    /**
+     * The engine used to record a delay's step and park the run in two
+     * separate writes. A worker that died in between left the run `running`
+     * behind a recorded delay; re-advanced, it walked straight past it and
+     * sent hours early.
+     */
+    public function test_a_delay_left_half_written_is_restored_not_skipped(): void
+    {
+        $this->makeAutomation($this->workspace, 'session_completed', [
+            'nodes' => [
+                ['id' => 'trigger', 'type' => 'trigger', 'config' => []],
+                ['id' => 'wait', 'type' => 'delay', 'config' => ['hours' => 3]],
+                ['id' => 'send', 'type' => 'send_email', 'config' => [
+                    'template_id' => $this->workspace->templates()->value('id'),
+                    'channel_id' => $this->workspace->channels()->value('id'),
+                ]],
+            ],
+            'edges' => [
+                ['from' => 'trigger', 'to' => 'wait'],
+                ['from' => 'wait', 'to' => 'send'],
+            ],
+        ]);
+
+        $this->refuseCacheLocks();
+        $run = $this->signUp('user-1', 'session_completed');
+        $wakeAt = now()->addHours(3);
+        RunStep::create([
+            'automation_run_id' => $run->id,
+            'node_id' => 'wait',
+            'type' => 'delay',
+            'status' => 'completed',
+            'output' => ['wake_at' => $wakeAt->toIso8601String()],
+            'executed_at' => now(),
+        ]);
+        $this->grantCacheLocks();
+
+        $this->travel(16)->minutes();
+        $this->artisan('engage:tick')->assertSuccessful();
+
+        $run->refresh();
+        $this->assertSame([AutomationRun::STATUS_WAITING, 'wait'], [$run->status, $run->current_node_id]);
+        $this->assertTrue($run->wake_at->equalTo($wakeAt), 'The run waits for the wake time the step recorded, not a fresh three hours.');
+        Mail::assertNothingSent();
+
+        $this->travel(3)->hours();
+        $this->artisan('engage:tick')->assertSuccessful();
+
+        Mail::assertSent(TemplatedMail::class, 1);
+        $this->assertSame(AutomationRun::STATUS_COMPLETED, $run->refresh()->status);
+    }
+
+    /**
+     * Same gap on a branch: the step held the answer, the run's context did
+     * not, and with every edge labelled the walk found no next node and
+     * ended the run without a word.
+     */
+    public function test_a_branch_left_half_written_keeps_the_answer_its_step_recorded(): void
+    {
+        $upgrade = $this->makeEmailTemplate($this->workspace, 'Upgrade?', '<p>Go premium</p>');
+        $thanks = $this->makeEmailTemplate($this->workspace, 'Thanks!', '<p>Enjoy premium</p>');
+        $channel = $this->workspace->channels()->value('id');
+
+        $this->makeAutomation($this->workspace, 'plan_chosen', [
+            'nodes' => [
+                ['id' => 'trigger', 'type' => 'trigger', 'config' => []],
+                ['id' => 'is_free', 'type' => 'branch', 'config' => [
+                    'field' => 'event.plan', 'operator' => 'equals', 'value' => 'free',
+                ]],
+                ['id' => 'nudge', 'type' => 'send_email', 'config' => ['template_id' => $upgrade->id, 'channel_id' => $channel]],
+                ['id' => 'thank', 'type' => 'send_email', 'config' => ['template_id' => $thanks->id, 'channel_id' => $channel]],
+            ],
+            'edges' => [
+                ['from' => 'trigger', 'to' => 'is_free'],
+                ['from' => 'is_free', 'to' => 'nudge', 'branch' => 'true'],
+                ['from' => 'is_free', 'to' => 'thank', 'branch' => 'false'],
+            ],
+        ]);
+
+        $this->refuseCacheLocks();
+        $run = $this->signUp('user-1', 'plan_chosen');
+        // Recorded before the worker died. Re-evaluating today would say
+        // "free"; the answer the run already committed to stands.
+        RunStep::create([
+            'automation_run_id' => $run->id,
+            'node_id' => 'is_free',
+            'type' => 'branch',
+            'status' => 'completed',
+            'output' => ['result' => false],
+            'executed_at' => now(),
+        ]);
+        $this->grantCacheLocks();
+
+        $this->travel(16)->minutes();
+        $this->artisan('engage:tick')->assertSuccessful();
+
+        Mail::assertSent(TemplatedMail::class, fn (TemplatedMail $mail) => $mail->renderedSubject === 'Thanks!');
+        Mail::assertSent(TemplatedMail::class, 1);
+        $this->assertSame('false', $run->refresh()->context['branch:is_free'] ?? null);
+    }
+
     // ------------------------------------------------------------------
 
-    protected function signUp(string $personId): AutomationRun
+    protected function signUp(string $personId, string $event = 'customer_sign_up'): AutomationRun
     {
         $headers = $this->authHeaders($this->workspace, $this->key);
         $this->putJson("/api/v1/people/{$personId}", [
             'attributes' => ['email' => "{$personId}@example.com", 'first_name' => 'Ada'],
         ], $headers)->assertOk();
         $this->postJson('/api/v1/events', [
-            'name' => 'customer_sign_up',
+            'name' => $event,
             'person_id' => $personId,
             'data' => ['plan' => 'free'],
         ], $headers)->assertStatus(202);

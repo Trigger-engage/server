@@ -4,6 +4,7 @@ namespace TriggerEngage\Server\Engine;
 
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use TriggerEngage\Server\Engine\Channels\EmailChannel;
 use TriggerEngage\Server\Engine\Channels\PushChannel;
@@ -138,49 +139,37 @@ class RunEngine
                 return;
             }
 
-            // Idempotency: a non-send node that already has a step record was
-            // executed on a previous advance and is safe to move past.
-            if ($run->steps()->where('node_id', $node['id'])->exists()) {
-                $run->update(['current_node_id' => $node['id']]);
+            // Idempotency: a non-send node that already has a step record ran
+            // on a previous advance. Pick its outcome up from the step rather
+            // than walking straight past it: a run can be behind its own steps
+            // (see resumeFromStep), and a delay walked past is a delay skipped.
+            if ($step = $run->steps()->where('node_id', $node['id'])->first()) {
+                if (! $this->resumeFromStep($run, $node, $step)) {
+                    return;
+                }
 
                 continue;
             }
 
             switch ($node['type']) {
                 case 'delay':
-                    $this->recordStep($run, $node, 'completed', [
-                        'wake_at' => ($wakeAt = $this->wakeAt($node['config'], $run))->toIso8601String(),
+                    $wakeAt = $this->wakeAt($node['config'], $run);
+
+                    $this->checkpoint($run, $node, ['wake_at' => $wakeAt->toIso8601String()], [
+                        'status' => AutomationRun::STATUS_WAITING,
+                        'wake_at' => $wakeAt,
                     ]);
-
-                    $updated = AutomationRun::query()
-                        ->whereKey($run->id)
-                        ->where('status', AutomationRun::STATUS_RUNNING)
-                        ->update([
-                            'current_node_id' => $node['id'],
-                            'status' => AutomationRun::STATUS_WAITING,
-                            'wake_at' => $wakeAt,
-                        ]);
-
-                    if (! $updated) {
-                        return;
-                    }
 
                     return;
 
                 case 'branch':
                     $result = $this->conditions->passes($node['config'], $context);
 
-                    $this->recordStep($run, $node, 'completed', ['result' => $result]);
-
-                    $updated = AutomationRun::query()
-                        ->whereKey($run->id)
-                        ->where('status', AutomationRun::STATUS_RUNNING)
-                        ->update([
-                            'current_node_id' => $node['id'],
-                            'context' => array_merge($run->context ?? [], [
-                                'branch:'.$node['id'] => $result ? 'true' : 'false',
-                            ]),
-                        ]);
+                    $updated = $this->checkpoint($run, $node, ['result' => $result], [
+                        'context' => array_merge($run->context ?? [], [
+                            'branch:'.$node['id'] => $result ? 'true' : 'false',
+                        ]),
+                    ]);
 
                     if (! $updated) {
                         return;
@@ -199,20 +188,11 @@ class RunEngine
                         ->exists();
                     $result = $isMember === $wantIn;
 
-                    $this->recordStep($run, $node, 'completed', [
-                        'member' => $isMember,
-                        'result' => $result,
+                    $updated = $this->checkpoint($run, $node, ['member' => $isMember, 'result' => $result], [
+                        'context' => array_merge($run->context ?? [], [
+                            'branch:'.$node['id'] => $result ? 'true' : 'false',
+                        ]),
                     ]);
-
-                    $updated = AutomationRun::query()
-                        ->whereKey($run->id)
-                        ->where('status', AutomationRun::STATUS_RUNNING)
-                        ->update([
-                            'current_node_id' => $node['id'],
-                            'context' => array_merge($run->context ?? [], [
-                                'branch:'.$node['id'] => $result ? 'true' : 'false',
-                            ]),
-                        ]);
 
                     if (! $updated) {
                         return;
@@ -226,17 +206,11 @@ class RunEngine
                     // this advance never reshuffle the experiment.
                     $variant = $this->pickVariant($run, $node);
 
-                    $this->recordStep($run, $node, 'completed', ['variant' => $variant]);
-
-                    $updated = AutomationRun::query()
-                        ->whereKey($run->id)
-                        ->where('status', AutomationRun::STATUS_RUNNING)
-                        ->update([
-                            'current_node_id' => $node['id'],
-                            'context' => array_merge($run->context ?? [], [
-                                'branch:'.$node['id'] => $variant,
-                            ]),
-                        ]);
+                    $updated = $this->checkpoint($run, $node, ['variant' => $variant], [
+                        'context' => array_merge($run->context ?? [], [
+                            'branch:'.$node['id'] => $variant,
+                        ]),
+                    ]);
 
                     if (! $updated) {
                         return;
@@ -554,6 +528,80 @@ class RunEngine
             ->addDays((int) ($config['days'] ?? 0))
             ->addHours((int) ($config['hours'] ?? 0))
             ->addMinutes((int) ($config['minutes'] ?? 0));
+    }
+
+    /**
+     * Record a node's step and move the run onto that node in one
+     * transaction. Written apart, a worker that died between the two left a
+     * step the run never acted on: a delay recorded but never waited, a branch
+     * answered but its answer lost.
+     *
+     * @param  array<string, mixed>  $output
+     * @param  array<string, mixed>  $changes  run columns to set alongside current_node_id
+     */
+    protected function checkpoint(AutomationRun $run, array $node, array $output, array $changes): int
+    {
+        return DB::transaction(function () use ($run, $node, $output, $changes): int {
+            $this->recordStep($run, $node, 'completed', $output);
+
+            return AutomationRun::query()
+                ->whereKey($run->id)
+                ->where('status', AutomationRun::STATUS_RUNNING)
+                ->update(['current_node_id' => $node['id']] + $changes);
+        });
+    }
+
+    /**
+     * A run that reaches a node already holding a step record is behind its
+     * own steps: a duplicate delivery, or a run left mid-checkpoint by an
+     * engine that wrote the step and the run separately. Restore what the
+     * step decided instead of skipping the node: a delay whose wake time is
+     * still ahead parks the run again, and a branch, segment or split whose
+     * answer never reached the run's context gets it back.
+     *
+     * @return bool true to keep walking, false when the run is parked again
+     */
+    protected function resumeFromStep(AutomationRun $run, array $node, RunStep $step): bool
+    {
+        $output = $step->output ?? [];
+
+        if ($node['type'] === 'delay' && filled($output['wake_at'] ?? null)) {
+            $wakeAt = Date::parse($output['wake_at'])->setTimezone(config('app.timezone', 'UTC'));
+
+            if ($wakeAt->isFuture()) {
+                AutomationRun::query()
+                    ->whereKey($run->id)
+                    ->where('status', AutomationRun::STATUS_RUNNING)
+                    ->update([
+                        'current_node_id' => $node['id'],
+                        'status' => AutomationRun::STATUS_WAITING,
+                        'wake_at' => $wakeAt,
+                    ]);
+
+                return false;
+            }
+        }
+
+        $changes = ['current_node_id' => $node['id']];
+        $key = 'branch:'.$node['id'];
+        $answer = match ($node['type']) {
+            'branch', 'segment' => array_key_exists('result', $output) ? ($output['result'] ? 'true' : 'false') : null,
+            'split' => $output['variant'] ?? null,
+            default => null,
+        };
+
+        if ($answer !== null && ! array_key_exists($key, $run->context ?? [])) {
+            $changes['context'] = array_merge($run->context ?? [], [$key => $answer]);
+        }
+
+        // Not gated on the row count: on MySQL a no-op update reports zero.
+        // The walk re-reads the run before every node and stops if it moved.
+        AutomationRun::query()
+            ->whereKey($run->id)
+            ->where('status', AutomationRun::STATUS_RUNNING)
+            ->update($changes);
+
+        return true;
     }
 
     protected function recordStep(
