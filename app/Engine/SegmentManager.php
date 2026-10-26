@@ -21,6 +21,13 @@ class SegmentManager
      */
     protected const MAX_SYNC_PASSES = 3;
 
+    /**
+     * Membership writes bind at most this many person ids per statement. A
+     * segment can hold more people than MySQL allows placeholders in one
+     * prepared statement (65,535), so no write may bind the whole membership.
+     */
+    public const WRITE_CHUNK = 500;
+
     public const EVENT_ENTERED = 'segment_entered';
 
     public const EVENT_LEFT = 'segment_left';
@@ -132,14 +139,24 @@ class SegmentManager
 
         $now = now();
 
+        // Work out who no longer matches in PHP and delete them a chunk at a
+        // time, rather than "delete where not in <every match>".
+        $matching = $matchingIds->flip();
+
         DB::table('segment_person')
             ->where('segment_id', $segment->id)
             ->where('source', 'rule')
-            ->when($matchingIds->isNotEmpty(), fn ($q) => $q->whereNotIn('person_id', $matchingIds))
-            ->delete();
+            ->pluck('person_id')
+            ->reject(fn ($id) => $matching->has($id))
+            ->chunk(self::WRITE_CHUNK)
+            ->each(fn ($chunk) => DB::table('segment_person')
+                ->where('segment_id', $segment->id)
+                ->where('source', 'rule')
+                ->whereIn('person_id', $chunk->values()->all())
+                ->delete());
 
         $matchingIds
-            ->chunk(500)
+            ->chunk(self::WRITE_CHUNK)
             ->each(function ($chunk) use ($segment, $now): void {
                 DB::table('segment_person')->insertOrIgnore(
                     $chunk->map(fn ($id) => [

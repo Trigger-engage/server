@@ -246,13 +246,13 @@ function SegmentCard({ segment, events, segmentOptions, onEdit }) {
         <article className="rounded-xl border border-white/[0.08] bg-slate-950/30 p-5">
             <div className="flex items-start justify-between gap-3">
                 <div><div className="flex items-center gap-2"><h3 className="font-medium">{segment.name}</h3>{segment.type === 'all' && <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Default</span>}</div><p className="mt-1 text-xs text-slate-500">{summary}</p></div>
-                <span className="rounded-full bg-violet-400/10 px-2.5 py-1 text-xs text-violet-200">{segment.people_count} people</span>
+                <span className="shrink-0 whitespace-nowrap rounded-full bg-violet-400/10 px-2.5 py-1 text-xs text-violet-200">{segment.people_count} {segment.people_count === 1 ? 'person' : 'people'}</span>
             </div>
             {segment.description && <p className="mt-4 text-sm text-slate-500">{segment.description}</p>}
             {segment.type === 'rule' && <RuleSummary rules={segment.rules} events={events} segmentOptions={segmentOptions} />}
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3 font-mono text-[11px] text-slate-600">
-                <span>{segment.public_id}</span>
-                <div className="flex items-center gap-3 font-sans">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-white/[0.06] pt-3 font-mono text-[11px] text-slate-600">
+                <span className="min-w-0 break-all">{segment.public_id}</span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 whitespace-nowrap font-sans">
                     {segment.type !== 'all' && <button type="button" className="text-xs text-slate-400 hover:text-slate-200" onClick={duplicate}>Duplicate</button>}
                     {segment.type === 'rule' && <button type="button" className="text-xs text-violet-300 hover:text-violet-200" onClick={onEdit}>Edit rules</button>}
                     <Link href={engagePath(`broadcasts?segment=${segment.id}`)} className="text-xs text-sky-300 hover:text-sky-200">Broadcast</Link>
