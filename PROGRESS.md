@@ -399,3 +399,18 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
 **Needs:** the package release, `vendor:publish --tag=trigger-engage-assets
 --force`, the email channel on SMTP with ZeptoMail credentials,
 `engage:setup-push`, both backfills, then republish the split at 90/10.
+
+## Segments at scale: chunked recompute, cards that fit
+
+- **Recompute no longer binds every member.** `SegmentManager::recompute()` deleted stale rule rows
+  with `whereNotIn('person_id', <every matching id>)`, and MySQL caps a statement at 65,535
+  placeholders, so a segment past that size could no longer be recomputed. Stale rows are now
+  worked out in PHP and deleted `SegmentManager::WRITE_CHUNK` (500) at a time; inserts already
+  were. Entered/left events are recorded exactly as before.
+  `test_recompute_deletes_in_chunks_however_many_people_match` fails on the old code (one
+  delete bound 1,202 ids).
+- **Segment cards fit their column.** The footer (public id, Duplicate, Edit rules, Broadcast,
+  Manage →) was one row that could not wrap, so in the three-column grid it ran into the next
+  card and widened the page (1,382px at a 1,280px viewport, 514px on a 390px phone). It wraps
+  now, links never break mid-label, the member-count pill stays on one line, and one member
+  reads "1 person".

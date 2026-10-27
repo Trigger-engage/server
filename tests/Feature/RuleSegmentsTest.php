@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
+use TriggerEngage\Server\Engine\SegmentManager;
 use TriggerEngage\Server\Models\Event;
+use TriggerEngage\Server\Models\EventOccurrence;
 use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Models\Segment;
 
@@ -136,5 +140,57 @@ class RuleSegmentsTest extends TestCase
             'name' => 'Geo', 'rules' => ['match' => 'all', 'conditions' => [['kind' => 'attribute', 'field' => 'country', 'operator' => 'equals', 'value' => 'KE']]],
         ], $headers)->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame(['b'], $segment->people()->pluck('external_id')->all());
+    }
+
+    /**
+     * MySQL allows 65,535 placeholders per statement. Recompute used to delete
+     * with "not in <every matching id>", so a segment past that size could no
+     * longer be recomputed at all. Deletes now bind one chunk at a time.
+     */
+    public function test_recompute_deletes_in_chunks_however_many_people_match(): void
+    {
+        Queue::fake();
+        [$workspace] = $this->makeWorkspace();
+        $chunk = SegmentManager::WRITE_CHUNK;
+        $staying = $chunk * 2 + 200;
+        $leaving = $chunk + 100;
+
+        foreach (array_chunk(range(1, $staying + $leaving), 200) as $ids) {
+            Person::query()->insert(array_map(fn (int $i) => [
+                'workspace_id' => $workspace->id,
+                'external_id' => "p{$i}",
+                'attributes' => json_encode(['plan' => 'premium', 'n' => $i]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ], $ids));
+        }
+
+        $segment = $workspace->segments()->create([
+            'name' => 'Premium', 'type' => Segment::TYPE_RULE,
+            'rules' => ['match' => 'all', 'conditions' => [['kind' => 'attribute', 'field' => 'plan', 'operator' => 'equals', 'value' => 'premium']]],
+        ]);
+        $manager = app(SegmentManager::class);
+        $manager->recompute($segment);
+        $this->assertSame($staying + $leaving, $segment->people()->count());
+
+        Person::query()->where('workspace_id', $workspace->id)->where('attributes->n', '>', $staying)
+            ->update(['attributes' => json_encode(['plan' => 'free'])]);
+
+        $deletes = [];
+        DB::listen(function ($query) use (&$deletes): void {
+            if (str_starts_with(strtolower($query->sql), 'delete')) {
+                $deletes[] = count($query->bindings);
+            }
+        });
+
+        $this->assertSame($staying, $manager->recompute($segment));
+
+        $this->assertSame($staying, $segment->people()->count());
+        $this->assertFalse($segment->people()->where('external_id', 'p'.($staying + 1))->exists());
+        $this->assertNotEmpty($deletes);
+        $this->assertLessThanOrEqual($chunk + 2, max($deletes), 'A delete bound more ids than one chunk.');
+        $this->assertSame($leaving, EventOccurrence::query()
+            ->whereHas('event', fn ($q) => $q->where('name', SegmentManager::EVENT_LEFT))
+            ->count());
     }
 }
