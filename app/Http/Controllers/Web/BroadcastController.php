@@ -83,7 +83,7 @@ class BroadcastController extends Controller
         abort_unless($broadcast->workspace_id === $workspace->id, 404);
         $broadcast->load('segment:id,name', 'template:id,name', 'channelConfiguration:id,name,driver');
         $broadcast->settings = $broadcast->channel === 'email'
-            ? array_merge($this->layouts->normalizeSettings($broadcast->settings), $this->deliverySettings($broadcast->settings, 'email'))
+            ? array_merge($this->layouts->normalizeSettings($broadcast->settings, $workspace), $this->deliverySettings($broadcast->settings, 'email'))
             : $broadcast->settings;
 
         return Inertia::render('Broadcasts/Edit', [
@@ -100,7 +100,7 @@ class BroadcastController extends Controller
                 'audience' => $broadcast->isEditable() ? $this->audiencePreview($broadcast) : null,
             ],
             'preview' => $this->renderPreview($broadcast->messageTemplate()),
-            'defaultSettings' => $this->layouts->defaultSettings(),
+            'defaultSettings' => $this->layouts->brandFor($workspace),
         ]);
     }
 
@@ -114,7 +114,7 @@ class BroadcastController extends Controller
         $data = $request->validate($this->contentRules());
         $data['channel'] = $broadcast->channel;
         $this->validateLiquid($data);
-        $broadcast->update($this->normalizedContent($data));
+        $broadcast->update($this->normalizedContent($data, $workspace));
 
         return back()->with('success', 'Broadcast saved. It will send with this content.');
     }
@@ -311,7 +311,7 @@ class BroadcastController extends Controller
             'from_name' => $template->from_name,
             'from_address' => $template->from_address,
             'settings' => $template->settings,
-        ]);
+        ], $template->workspace);
 
         return [
             'subject' => $content['subject'] ?? null,

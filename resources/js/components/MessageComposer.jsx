@@ -1,18 +1,9 @@
+import { Link } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { FieldError, inputClass, panelClass, secondaryButtonClass } from './Layout';
 import EmailWysiwyg from './EmailWysiwyg';
+import BrandControls, { brandOverrides } from './BrandControls';
 import { engagePath } from '../lib/engagePath';
-
-const colorFields = [
-    ['background_color', 'Page'], ['card_color', 'Card'], ['heading_color', 'Heading'],
-    ['text_color', 'Body text'], ['muted_color', 'Muted text'], ['footer_color', 'Footer'],
-    ['footer_divider_color', 'Footer divider'], ['accent_color', 'Accent'],
-];
-
-const socialFields = [
-    ['instagram_url', 'Instagram'], ['youtube_url', 'YouTube'], ['facebook_url', 'Facebook'],
-    ['tiktok_url', 'TikTok'], ['linkedin_url', 'LinkedIn'], ['x_url', 'X / Twitter'],
-];
 
 /**
  * Content authoring + exact live preview shared by the template editor and the
@@ -116,25 +107,16 @@ export default function MessageComposer({
             </section>
 
             {isEmail && <section className={panelClass}>
-                <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">Email layout</h2><p className="mt-1 text-sm text-slate-500">Mytherapist.ng branding is the default for branded emails.</p></div><select className={`${inputClass} max-w-48`} value={data.layout ?? 'mytherapist'} onChange={(e) => setField('layout', e.target.value)}><option value="mytherapist">Branded layout</option><option value="plain">Plain HTML</option></select></div>
+                <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">Email layout</h2><p className="mt-1 text-sm text-slate-500">The branded layout uses your workspace brand. Plain HTML sends the body as written.</p></div><select className={`${inputClass} max-w-48`} value={data.layout ?? 'mytherapist'} onChange={(e) => setField('layout', e.target.value)}><option value="mytherapist">Branded layout</option><option value="plain">Plain HTML</option></select></div>
             </section>}
 
-            {isBranded && <>
-                <section className={panelClass}>
-                    <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">Brand</h2><p className="mt-1 text-sm text-slate-500">Logo, identity, destinations, and the navy-and-gold footer.</p></div><button type="button" className={secondaryButtonClass} onClick={() => setField('settings', { ...defaultSettings })}>Restore Mytherapist.ng</button></div>
-                    <div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Brand name"><input className={inputClass} value={settings.brand_name ?? ''} onChange={(e) => updateSetting('brand_name', e.target.value)} /></Field><Field label="Brand suffix"><input className={inputClass} value={settings.brand_suffix ?? ''} onChange={(e) => updateSetting('brand_suffix', e.target.value)} /></Field><Field label="Tagline"><input className={inputClass} value={settings.tagline ?? ''} onChange={(e) => updateSetting('tagline', e.target.value)} /></Field><Field label="Support email"><input type="email" className={inputClass} value={settings.support_email ?? ''} onChange={(e) => updateSetting('support_email', e.target.value)} /></Field><Field label="Logo URL"><input type="url" className={inputClass} value={settings.logo_url ?? ''} onChange={(e) => updateSetting('logo_url', e.target.value)} /></Field><Field label="Website URL"><input type="url" className={inputClass} value={settings.website_url ?? ''} onChange={(e) => updateSetting('website_url', e.target.value)} /></Field></div>
-                </section>
-
-                <section className={panelClass}>
-                    <h2 className="text-lg font-semibold">Colors</h2><div className="mt-5 grid gap-3 sm:grid-cols-2">{colorFields.map(([key, label]) => <label key={key} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300"><span>{label}<span className="ml-2 font-mono text-xs text-slate-500">{settings[key]}</span></span><input aria-label={`${label} color`} type="color" className="h-9 w-12 cursor-pointer rounded border-0 bg-transparent" value={settings[key] ?? '#000000'} onChange={(e) => updateSetting(key, e.target.value.toUpperCase())} /></label>)}</div>
-                </section>
-
-                <section className={panelClass}>
-                    <h2 className="text-lg font-semibold">Footer and app links</h2>
-                    <div className="mt-5 space-y-4"><Switch checked={settings.show_app_badges} onChange={(value) => updateSetting('show_app_badges', value)}>Show App Store and Google Play badges</Switch>{settings.show_app_badges && <div className="grid gap-4 sm:grid-cols-2"><Field label="Badge caption"><input className={inputClass} value={settings.badge_caption ?? ''} onChange={(e) => updateSetting('badge_caption', e.target.value)} /></Field><div /><Field label="App Store URL"><input type="url" className={inputClass} value={settings.app_store_url ?? ''} onChange={(e) => updateSetting('app_store_url', e.target.value)} /></Field><Field label="Google Play URL"><input type="url" className={inputClass} value={settings.play_store_url ?? ''} onChange={(e) => updateSetting('play_store_url', e.target.value)} /></Field></div>}<Field label="Why the recipient received this"><textarea rows="2" className={inputClass} value={settings.footer_note ?? ''} onChange={(e) => updateSetting('footer_note', e.target.value)} /></Field><Field label="Crisis support copy"><textarea rows="3" className={inputClass} value={settings.crisis_text ?? ''} onChange={(e) => updateSetting('crisis_text', e.target.value)} /></Field><Field label="Company line"><input className={inputClass} value={settings.company_line ?? ''} onChange={(e) => updateSetting('company_line', e.target.value)} /></Field></div>
-                    <details className="mt-5 rounded-lg border border-white/10 p-4"><summary className="cursor-pointer text-sm font-medium text-slate-300">Social links</summary><div className="mt-4"><Switch checked={settings.show_social_links} onChange={(value) => updateSetting('show_social_links', value)}>Show social icons</Switch>{settings.show_social_links && <div className="mt-4 grid gap-3 sm:grid-cols-2">{socialFields.map(([key, label]) => <Field key={key} label={label}><input type="url" className={inputClass} value={settings[key] ?? ''} onChange={(e) => updateSetting(key, e.target.value)} /></Field>)}</div>}</div></details>
-                </section>
-            </>}
+            {isBranded && <BrandControls settings={settings} updateSetting={updateSetting}
+                description={(() => {
+                    const differing = brandOverrides(settings, defaultSettings).length;
+                    if (differing === 0) return 'Follows the workspace brand. A change here applies to this message only.';
+                    return `${differing} brand ${differing === 1 ? 'setting differs' : 'settings differ'} from the workspace brand. Everything else follows it.`;
+                })()}
+                actions={<div className="flex flex-wrap gap-2"><Link href={engagePath('brand')} className="rounded-lg px-3 py-2 text-sm text-emerald-300 hover:bg-white/5">Workspace brand →</Link><button type="button" className={secondaryButtonClass} onClick={() => setField('settings', { ...settings, ...defaultSettings })}>Use workspace brand</button></div>} />}
 
             {isPush && <section className={panelClass}><h2 className="text-lg font-semibold">Where the tap goes</h2><p className="mt-1 text-sm text-slate-500">A deep link the app opens when the notification is tapped. Liquid works here too, so a journey can point at the person in the event: mytherapistng://book/{'{{ event.therapist_id }}'}. Leave blank to open the app on its home screen.</p><div className="mt-5 grid gap-4"><Field label="Deep link"><input className={inputClass} value={settings.url ?? ''} onChange={(e) => updateSetting('url', e.target.value)} placeholder="mytherapistng://therapists?openTio=1" /></Field><Field label="Extra data (JSON object)"><textarea rows="3" className={`${inputClass} font-mono text-xs leading-6`} value={dataText} onChange={(e) => updateDataText(e.target.value)} placeholder='{"campaign": "welcome"}' /></Field>{dataError && <p className="text-xs text-amber-200">{dataError}</p>}</div><FieldError message={errors['settings.url'] || errors['settings.data']} /></section>}
 
@@ -152,8 +134,4 @@ export default function MessageComposer({
 
 function Field({ label, children }) {
     return <label className="block text-xs font-medium uppercase tracking-wider text-slate-400">{label}{children}</label>;
-}
-
-function Switch({ checked, onChange, children }) {
-    return <label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" className="size-4 accent-emerald-400" checked={Boolean(checked)} onChange={(e) => onChange(e.target.checked)} />{children}</label>;
 }
