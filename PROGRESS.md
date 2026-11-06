@@ -465,3 +465,22 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
 - New tables are prefixed (`engage_subscription_topics`, `engage_subscription_preferences`) like
   `engage_api_keys`, so they cannot collide with a host's tables. 12 feature tests
   (`SubscriptionPreferencesTest`).
+
+## Channels can be edited, re-tested and deleted
+
+- **Edit in place.** Rename a channel, change its credentials, or move it to another driver of
+  the same type (the seeded log email channel onto SMTP is now an edit, not SQL). Automations and
+  broadcasts keep pointing at the same channel id, so they pick the change up on the next send.
+  Secrets (passwords, API keys, tokens) are never sent to the browser: the page only says which
+  are saved, and a secret left blank on edit keeps the stored one. A stored secret is never
+  carried into a different driver.
+- **Test what is saved.** Each card has a Test button that probes the stored credentials; the edit
+  form's "Test these settings" probes the form, filling blank secrets from the saved channel.
+- **Delete, safely.** A channel still named by an automation's published version, by an older
+  version a run is still on, or by a broadcast cannot be deleted, and the error names where it is
+  used. A send step with no channel uses its type's default, so it counts against the default.
+  Deleting the default promotes the next channel of that type. "Make default" moves it.
+- **Each card explains delivery tracking**: Termii and OneSignal cards show their webhook URL with
+  a copy button, SMTP says it has no delivery receipts, Expo says receipts are polled, and a log
+  channel carries an amber "no one receives these" warning.
+- 10 feature tests (`ChannelManagementTest`).

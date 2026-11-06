@@ -35,6 +35,10 @@ Route::put('/templates/{template}', [TemplateController::class, 'update'])->name
 Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
 Route::post('/channels/test', [ChannelController::class, 'test'])->name('channels.test');
 Route::post('/channels', [ChannelController::class, 'store'])->name('channels.store');
+Route::put('/channels/{channel}', [ChannelController::class, 'update'])->name('channels.update');
+Route::delete('/channels/{channel}', [ChannelController::class, 'destroy'])->name('channels.destroy');
+Route::post('/channels/{channel}/default', [ChannelController::class, 'makeDefault'])->name('channels.default');
+Route::post('/channels/{channel}/test', [ChannelController::class, 'testStored'])->name('channels.test-stored');
 Route::get('/automations', [AutomationController::class, 'index'])->name('automations.index');
 Route::post('/automations', [AutomationController::class, 'store'])->name('automations.store');
 Route::get('/automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');
