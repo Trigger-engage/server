@@ -30,8 +30,12 @@ class AuthenticateWorkspace
             return $this->unauthorized();
         }
 
+        // Only server keys open the full API: a client key is public by design
+        // and works on the client endpoints alone.
         $apiKey = ApiKey::query()
             ->where('workspace_id', $workspace->id)
+            ->where('kind', ApiKey::KIND_SERVER)
+            ->whereNull('revoked_at')
             ->where('key_hash', hash('sha256', $plaintextKey))
             ->first();
 

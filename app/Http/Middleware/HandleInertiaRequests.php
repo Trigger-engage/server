@@ -16,6 +16,8 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                // A newly created key, shown once.
+                'issued' => fn () => $request->session()->get('issued'),
             ],
         ];
     }

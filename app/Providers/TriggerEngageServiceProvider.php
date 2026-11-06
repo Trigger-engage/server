@@ -14,6 +14,7 @@ use TriggerEngage\Server\Console\Commands\InstallTriggerEngage;
 use TriggerEngage\Server\Contracts\WorkspaceResolver;
 use TriggerEngage\Server\Http\Controllers\Web\PreferenceCenterController;
 use TriggerEngage\Server\Http\Controllers\Web\UnsubscribeController;
+use TriggerEngage\Server\Http\Middleware\AuthenticateClient;
 use TriggerEngage\Server\Http\Middleware\AuthenticateWorkspace;
 use TriggerEngage\Server\Http\Middleware\AuthorizeDashboard;
 use TriggerEngage\Server\Http\Middleware\HandleInertiaRequests;
@@ -86,6 +87,11 @@ class TriggerEngageServiceProvider extends ServiceProvider
         Route::middleware(['api', SubstituteBindings::class, 'throttle:120,1'])
             ->prefix(config('trigger-engage-server.routes.api_prefix').'/webhooks')
             ->group($this->root.'/routes/webhooks.php');
+
+        // Publishable-key endpoints for browser and React Native apps.
+        Route::middleware(['api', 'throttle:240,1', AuthenticateClient::class])
+            ->prefix(config('trigger-engage-server.routes.api_prefix').'/client')
+            ->group($this->root.'/routes/client.php');
 
         $publicPrefix = config('trigger-engage-server.routes.unsubscribe_prefix');
         Route::middleware('web')->prefix($publicPrefix)->group(function (): void {

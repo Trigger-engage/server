@@ -506,3 +506,26 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
 - The unsubscribe page and preference centre use the workspace brand too.
 - 8 feature tests (`WorkspaceBrandTest`, including the migration on old-style rows); two older
   tests now assert that brand keys are filled in the editor rather than stored on the template.
+
+## Client keys: events straight from browser and mobile apps
+
+- **Publishable client keys** (`pk_…`), issued on a new **Connect your app** page together with an
+  identity secret shown once. A client key only works on `/api/v1/client/*`; the Basic-auth API
+  now also refuses revoked keys and any client key, so a key shipped in an app can't read or
+  delete people.
+- **Identity is signed by the host.** An app acts as a person only with `X-TE-Person` plus
+  `X-TE-Identity` = HMAC-SHA256(person id, identity secret), computed on the host's server
+  (`Support\ClientIdentity::token()` when embedded). A wrong token is a 401, never a silent
+  anonymous fallback. Without a person, events go to an anonymous device profile, merged on
+  identify.
+- **Endpoints:** `POST /client/events` (idempotency keys namespaced per client key; a key can be
+  limited to named events), `POST /client/identify` (merges the device, sets the app's own
+  properties but never email, phone, push tokens or last-seen), `POST|DELETE /client/push-tokens`
+  (newest 10 Expo tokens kept). CORS preflights are answered, and a key can be limited to origins.
+- **Last seen.** Every identified client request stamps `last_seen_at` and `last_seen_platform` on
+  the person, at most every five minutes.
+- **Connect your app** also shows the workspace id and endpoint with copy buttons, lists every
+  key with when it was last used, creates server keys (shown once) and revokes keys. A
+  standalone dashboard won't revoke its last server key, which it signs in with.
+- The browser and React Native SDK is a separate package, `@trigger-engage/js` (`js-sdk/` in the
+  monorepo). API reference in `docs/API.md`. 10 feature tests (`ClientApiTest`).
