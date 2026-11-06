@@ -17,4 +17,9 @@ class Template extends Model
     {
         return $this->belongsTo(Workspace::class);
     }
+
+    public function subscriptionTopic(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionTopic::class);
+    }
 }

@@ -14,6 +14,7 @@ use TriggerEngage\Server\Engine\Channels\SmsChannel;
 use TriggerEngage\Server\Models\Broadcast;
 use TriggerEngage\Server\Models\BroadcastRecipient;
 use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Services\Subscriptions;
 
 class SendBroadcastRecipient implements ShouldQueue
 {
@@ -41,6 +42,13 @@ class SendBroadcastRecipient implements ShouldQueue
             return;
         }
 
+        if (! app(Subscriptions::class)->allowsTopic($person, $broadcast->subscription_topic_id)) {
+            $recipient->update(['status' => 'skipped', 'error' => 'Person unsubscribed from this topic.']);
+            $this->completeIfFinished($broadcast);
+
+            return;
+        }
+
         $address = match ($broadcast->channel) {
             'email' => $person->email,
             'sms' => $person->phone,
@@ -60,6 +68,7 @@ class SendBroadcastRecipient implements ShouldQueue
             'workspace_id' => $broadcast->workspace_id,
             'person_id' => $person->id,
             'template_id' => $broadcast->template_id,
+            'subscription_topic_id' => $broadcast->subscription_topic_id,
             'channel' => $broadcast->channel,
             'to_address' => $address,
             'status' => 'queued',

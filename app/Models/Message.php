@@ -45,4 +45,9 @@ class Message extends Model
     {
         return $this->hasOne(BroadcastRecipient::class);
     }
+
+    public function subscriptionTopic(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionTopic::class);
+    }
 }

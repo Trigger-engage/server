@@ -56,6 +56,7 @@ class PushChannel
                 'workspace_id' => $person->workspace_id,
                 'person_id' => $person->id,
                 'template_id' => $template->id,
+                'subscription_topic_id' => $template->subscription_topic_id,
                 'channel' => 'push',
                 'to_address' => $address,
                 'subject' => $subject,

@@ -12,6 +12,7 @@ const KNOWN_REASONS = {
         push: 'No push destination on this profile',
     },
     'Person is suppressed for this channel.': 'Unsubscribed or suppressed',
+    'Person unsubscribed from this topic.': 'Opted out of this topic',
 };
 
 function reasonLabel(error, channel) {

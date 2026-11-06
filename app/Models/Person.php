@@ -90,4 +90,9 @@ class Person extends Model
             'properties' => $attributes,
         ]);
     }
+
+    public function subscriptionPreferences(): HasMany
+    {
+        return $this->hasMany(SubscriptionPreference::class);
+    }
 }

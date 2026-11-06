@@ -127,6 +127,31 @@ Erase a person and their data (GDPR/NDPR). Returns `{ "deleted": true|false }`.
 
 `attributes` mirrors `properties` for backward compatibility.
 
+## Subscriptions
+
+A person's channel-level subscriptions and their choice for each
+[subscription topic](guides/subscriptions.md), the same state the unsubscribe page and
+preference centre change. Topics are addressed by their key.
+
+### `GET /people/{external_id}/subscriptions`
+
+```json
+{
+  "external_id": "user-42",
+  "channels": { "email": { "subscribed": true, "reason": null }, "sms": { "subscribed": false, "reason": "unsubscribe" }, "push": { "subscribed": true, "reason": null } },
+  "topics": { "care_reminders": { "subscribed": false, "name": "Care reminders" } }
+}
+```
+
+### `PUT /people/{external_id}/subscriptions`
+
+```json
+{ "topics": { "care_reminders": false }, "channels": { "sms": false } }
+```
+
+Only the topics and channels named change. An unknown topic key or channel is `422`. A topic that
+follows a profile property writes that property. Returns the same body as `GET`.
+
 ## Segment membership
 
 These endpoints manage **manual** segments only. Event-driven and

@@ -50,6 +50,7 @@ class EmailChannel
                 'workspace_id' => $person->workspace_id,
                 'person_id' => $person->id,
                 'template_id' => $template->id,
+                'subscription_topic_id' => $template->subscription_topic_id,
                 'channel' => 'email',
                 'to_address' => $person->email,
                 'subject' => $subject,
@@ -59,6 +60,7 @@ class EmailChannel
         );
 
         $unsubscribeUrl = URL::temporarySignedRoute('unsubscribe.show', now()->addYear(), ['message' => $message->id]);
+        $oneClickUrl = URL::temporarySignedRoute('unsubscribe.one-click', now()->addYear(), ['message' => $message->id]);
         $body = $this->layouts->render($template, $content, $preheader, $unsubscribeUrl);
 
         if ($message->status === 'sent') {
@@ -88,6 +90,7 @@ class EmailChannel
                     fromName: $template->from_name,
                     replyToAddress: filled($settings['reply_to'] ?? null) ? (string) $settings['reply_to'] : null,
                     replyToName: filled($settings['reply_to_name'] ?? null) ? (string) $settings['reply_to_name'] : null,
+                    oneClickUnsubscribeUrl: $oneClickUrl,
                 ));
 
             $message->update(['status' => 'sent', 'sent_at' => now()]);
