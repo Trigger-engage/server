@@ -32,4 +32,9 @@ class Message extends Model
     {
         return $this->belongsTo(Template::class);
     }
+
+    public function subscriptionTopic(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionTopic::class);
+    }
 }
