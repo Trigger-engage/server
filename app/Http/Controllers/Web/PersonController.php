@@ -71,6 +71,10 @@ class PersonController extends Controller
             ],
             'segments' => $person->segments()->orderBy('name')->get(['segments.id', 'public_id', 'name', 'type']),
             'recentEvents' => $person->occurrences()->with('event:id,name')->latest('occurred_at')->limit(10)->get(['id', 'event_id', 'payload', 'occurred_at']),
+            'recentMessages' => $person->messages()->orderByDesc('id')->limit(5)
+                ->get(['id', 'person_id', 'channel', 'to_address', 'subject', 'status', 'created_at']),
+            'recentRuns' => $person->automationRuns()->with('automation:id,name')->orderByDesc('id')->limit(5)
+                ->get(['id', 'automation_id', 'person_id', 'status', 'created_at']),
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace TriggerEngage\Server\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Message extends Model
 {
@@ -31,5 +32,17 @@ class Message extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(Template::class);
+    }
+
+    /** Set when an automation step sent this message. */
+    public function runStep(): BelongsTo
+    {
+        return $this->belongsTo(RunStep::class);
+    }
+
+    /** Set when a broadcast sent this message. */
+    public function broadcastRecipient(): HasOne
+    {
+        return $this->hasOne(BroadcastRecipient::class);
     }
 }

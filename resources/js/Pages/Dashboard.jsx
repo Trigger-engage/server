@@ -16,10 +16,10 @@ export default function Dashboard({ workspace, counts, automations, metrics, rec
     return <Layout title="Overview" workspace={workspace}>
         <PageHeader eyebrow="Workspace overview" title="Good to see you" description="Monitor delivery health and continue building your customer messaging from one place." />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Runs in 30 days" value={metrics.runs_30d} />
-            <Metric label="Messages sent" value={metrics.messages_30d} />
-            <Metric label="Delivered" value={metrics.delivered_30d} tone="emerald" />
-            <Metric label="Failed or bounced" value={metrics.failed_30d} tone="rose" />
+            <Metric label="Runs in 30 days" value={metrics.runs_30d} href={engagePath('runs')} />
+            <Metric label="Messages sent" value={metrics.messages_30d} href={engagePath('messages?days=30')} />
+            <Metric label="Delivered" value={metrics.delivered_30d} tone="emerald" href={engagePath('messages?status=delivered&days=30')} />
+            <Metric label="Failed or bounced" value={metrics.failed_30d} tone="rose" href={engagePath('messages?status=problem&days=30')} />
         </div>
         <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sections.map(([key, label, description]) => <Link key={key} href={engagePath(key)} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:-translate-y-0.5 hover:border-emerald-400/20 hover:bg-white/[0.04]"><div className="flex items-center justify-between"><span className="text-sm font-semibold text-slate-200">{label}</span><span className="text-2xl font-bold text-white">{counts[key]}</span></div><p className="mt-3 text-sm leading-6 text-slate-500">{description}</p><span className="mt-4 inline-block text-xs font-medium text-emerald-300">Open {label.toLowerCase()} →</span></Link>)}
@@ -31,5 +31,5 @@ export default function Dashboard({ workspace, counts, automations, metrics, rec
     </Layout>;
 }
 
-function Metric({ label, value, tone = 'slate' }) { const colors = tone === 'emerald' ? 'text-emerald-300' : tone === 'rose' ? 'text-rose-300' : 'text-white'; return <div className={panelClass}><p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p><p className={`mt-3 text-3xl font-bold ${colors}`}>{value}</p></div>; }
+function Metric({ label, value, tone = 'slate', href }) { const colors = tone === 'emerald' ? 'text-emerald-300' : tone === 'rose' ? 'text-rose-300' : 'text-white'; return <Link href={href} className={`${panelClass} block transition hover:border-emerald-400/20 hover:bg-white/[0.04]`}><p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p><p className={`mt-3 text-3xl font-bold ${colors}`}>{value}</p><span className="mt-2 inline-block text-xs font-medium text-emerald-300">View →</span></Link>; }
 function Status({ value }) { return <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${['active', 'completed', 'delivered'].includes(value) ? 'bg-emerald-400/10 text-emerald-300' : value === 'failed' ? 'bg-rose-400/10 text-rose-300' : 'bg-amber-400/10 text-amber-200'}`}>{value}</span>; }
