@@ -5,6 +5,7 @@ use TriggerEngage\Server\Http\Controllers\Web\AnalyticsController;
 use TriggerEngage\Server\Http\Controllers\Web\AutomationController;
 use TriggerEngage\Server\Http\Controllers\Web\BroadcastController;
 use TriggerEngage\Server\Http\Controllers\Web\ChannelController;
+use TriggerEngage\Server\Http\Controllers\Web\ConnectController;
 use TriggerEngage\Server\Http\Controllers\Web\DashboardController;
 use TriggerEngage\Server\Http\Controllers\Web\EventDefinitionController;
 use TriggerEngage\Server\Http\Controllers\Web\PersonController;
@@ -26,6 +27,9 @@ Route::post('/templates', [TemplateController::class, 'store'])->name('templates
 Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
 Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
 Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
+Route::get('/connect', [ConnectController::class, 'index'])->name('connect.index');
+Route::post('/connect/keys', [ConnectController::class, 'store'])->name('connect.keys.store');
+Route::post('/connect/keys/{key}/revoke', [ConnectController::class, 'revoke'])->name('connect.keys.revoke');
 Route::post('/channels/test', [ChannelController::class, 'test'])->name('channels.test');
 Route::post('/channels', [ChannelController::class, 'store'])->name('channels.store');
 Route::get('/automations', [AutomationController::class, 'index'])->name('automations.index');

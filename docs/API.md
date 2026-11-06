@@ -167,6 +167,55 @@ Each item accepts the same fields as the single-item endpoints, including `anony
 { "identified": 1, "tracked": 1, "duplicates": 0, "skipped": 0 }
 ```
 
+## Client endpoints (apps)
+
+Browser and React Native apps call these directly with a **publishable client key**, usually
+through [`@trigger-engage/js`](../../js-sdk/README.md). Create one on the dashboard's
+**Connect your app** page. A client key never works with Basic auth on the endpoints above.
+
+- **Base path:** `/api/v1/client` (self-hosted) or `/trigger-engage/api/v1/client` (embedded)
+- **Rate limit:** 240 requests/minute per client
+- **CORS:** answered for any origin, or only the key's allowed origins when it has some
+
+| Header | |
+|---|---|
+| `X-TE-Key` | **Required.** The client key, `pk_…`. |
+| `X-TE-Person` | The person's `external_id`, once the app knows who is signed in. |
+| `X-TE-Identity` | Required with `X-TE-Person`: `HMAC-SHA256(person id, identity secret)`, computed on your server and handed to the app. A wrong token is `401`, never a silent fall back to anonymous. |
+| `X-TE-Platform` | `ios`, `android` or `web`; stored as `last_seen_platform`. |
+
+Every identified request also stamps `last_seen_at` on the person (at most every 5 minutes), so a
+segment such as "not seen for 14 days" has something to read.
+
+### `POST /client/events`
+
+`name` (required), `data`, `occurred_at`, `idempotency_key`, and `anonymous_id` (required when
+the request has no person). A key can be limited to a list of event names. Idempotency keys
+are namespaced per client key, so they cannot collide with server calls.
+`202` → `{"accepted": true, "duplicate": false}`.
+
+### `POST /client/identify`
+
+Needs a person. `anonymous_id` merges that device's anonymous history into the person (see
+[anonymous identity](guides/anonymous-identity.md)); `properties` are merged onto the profile,
+except `email`, `phone`, push tokens and the last-seen fields, which an app can't set on itself.
+
+### `POST /client/push-tokens` · `DELETE /client/push-tokens`
+
+Needs a person. `{"token": "ExponentPushToken[…]"}` adds the token to the person's
+`expo_push_tokens` (the newest 10 are kept) or removes it, for example on log-out.
+
+### Signing the person id
+
+```php
+// Embedded: the package signs with the workspace's newest client key.
+use TriggerEngage\Server\Support\ClientIdentity;
+$token = ClientIdentity::token('user-'.$user->id);
+
+// Separate server: the identity secret was shown once when the client key was created.
+$token = hash_hmac('sha256', 'user-'.$user->id, env('TRIGGER_ENGAGE_IDENTITY_SECRET'));
+```
+
 ## Delivery webhooks
 
 Providers post delivery status back to these public endpoints (no Basic auth; each is verified
@@ -184,7 +233,8 @@ Standard HTTP status codes with a JSON body:
 
 | Status | Meaning |
 |---|---|
-| `401` | Missing/invalid workspace + key credentials |
+| `401` | Missing/invalid workspace + key credentials, or (client endpoints) an unknown client key or identity token |
+| `403` | Client endpoints: the request's origin isn't allowed for this client key |
 | `404` | Person or resource not found in this workspace |
 | `422` | Validation error (Laravel `{ "message", "errors": { ... } }`) |
 | `429` | Rate limit exceeded |

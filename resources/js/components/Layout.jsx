@@ -11,6 +11,7 @@ const navigation = [
     { label: 'Segments', href: engagePath('segments'), icon: 'segments' },
     { label: 'Templates', href: engagePath('templates'), icon: 'templates' },
     { label: 'Channels', href: engagePath('channels'), icon: 'channels' },
+    { label: 'Connect your app', href: engagePath('connect'), icon: 'connect' },
     { label: 'Broadcasts', href: engagePath('broadcasts'), icon: 'broadcasts' },
     { label: 'Runs', href: engagePath('runs'), icon: 'runs' },
 ];
@@ -69,6 +70,7 @@ function NavIcon({ name, active = false }) {
         segments: <><circle cx="8" cy="8" r="3" /><circle cx="17" cy="7" r="2" /><path d="M2.5 20a5.5 5.5 0 0 1 11 0M13 15.5a4.5 4.5 0 0 1 8.5 2" /></>,
         templates: <><path d="M6 2h9l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h6" /></>,
         channels: <><path d="M4 4h16v12H5.2L4 17.2V4Z" /><path d="m7 8 5 3 5-3" /><path d="M8 20h8" /></>,
+        connect: <><path d="M9 7V3M15 7V3" /><path d="M6 7h12v4a6 6 0 0 1-12 0V7Z" /><path d="M12 17v4" /></>,
         broadcasts: <><path d="m3 11 16-7v16L3 13v-2Z" /><path d="M7 14.8V20h4v-3.5" /></>,
         runs: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
         menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
