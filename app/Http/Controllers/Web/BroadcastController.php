@@ -195,7 +195,7 @@ class BroadcastController extends Controller
                 ->orderBy('id')
                 ->paginate(50)->withQueryString()
                 ->through(fn (BroadcastRecipient $recipient) => [
-                    ...$recipient->only(['id', 'status', 'error', 'sent_at']),
+                    ...$recipient->only(['id', 'status', 'error', 'sent_at', 'message_id']),
                     'person' => $recipient->person?->only('id', 'external_id', 'email', 'phone'),
                 ]),
             'filters' => ['status' => $status],

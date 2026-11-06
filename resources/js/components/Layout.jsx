@@ -13,6 +13,7 @@ const navigation = [
     { label: 'Templates', href: engagePath('templates'), icon: 'templates' },
     { label: 'Channels', href: engagePath('channels'), icon: 'channels' },
     { label: 'Broadcasts', href: engagePath('broadcasts'), icon: 'broadcasts' },
+    { label: 'Messages', href: engagePath('messages'), icon: 'messages' },
     { label: 'Runs', href: engagePath('runs'), icon: 'runs' },
 ];
 
@@ -72,6 +73,7 @@ function NavIcon({ name, active = false }) {
         templates: <><path d="M6 2h9l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h6" /></>,
         channels: <><path d="M4 4h16v12H5.2L4 17.2V4Z" /><path d="m7 8 5 3 5-3" /><path d="M8 20h8" /></>,
         broadcasts: <><path d="m3 11 16-7v16L3 13v-2Z" /><path d="M7 14.8V20h4v-3.5" /></>,
+        messages: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
         runs: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
         menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
     };
@@ -96,12 +98,16 @@ export function FieldError({ message }) {
 const STATUS_BADGE_STYLES = {
     completed: 'bg-emerald-400/10 text-emerald-300',
     sent: 'bg-emerald-400/10 text-emerald-300',
+    delivered: 'bg-emerald-400/10 text-emerald-300',
     active: 'bg-emerald-400/10 text-emerald-300',
     draft: 'bg-slate-400/10 text-slate-300',
     queued: 'bg-slate-400/10 text-slate-300',
     skipped: 'bg-amber-400/10 text-amber-200',
     sending: 'bg-amber-400/10 text-amber-200',
     paused: 'bg-amber-400/10 text-amber-200',
+    running: 'bg-amber-400/10 text-amber-200',
+    waiting: 'bg-amber-400/10 text-amber-200',
+    waiting_event: 'bg-amber-400/10 text-amber-200',
     failed: 'bg-rose-400/10 text-rose-300',
     bounced: 'bg-rose-400/10 text-rose-300',
 };
