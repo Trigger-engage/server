@@ -1,9 +1,10 @@
 import { Link, useForm } from '@inertiajs/react';
-import Layout, { FieldError, buttonClass } from '../../components/Layout';
+import Layout, { FieldError, buttonClass, panelClass } from '../../components/Layout';
 import MessageComposer from '../../components/MessageComposer';
+import SubscriptionTopicField from '../../components/SubscriptionTopicField';
 import { engagePath } from '../../lib/engagePath';
 
-export default function EditTemplate({ workspace, template, preview, defaultSettings }) {
+export default function EditTemplate({ workspace, template, preview, defaultSettings, topics = [] }) {
     const form = useForm({
         channel: template.channel,
         name: template.name,
@@ -14,6 +15,7 @@ export default function EditTemplate({ workspace, template, preview, defaultSett
         from_name: template.from_name ?? '',
         from_address: template.from_address ?? '',
         settings: { ...defaultSettings, ...(template.settings ?? {}) },
+        subscription_topic_id: template.subscription_topic_id ?? null,
     });
 
     const save = (event) => {
@@ -37,6 +39,7 @@ export default function EditTemplate({ workspace, template, preview, defaultSett
                 errors={form.errors}
                 defaultSettings={defaultSettings}
                 initialPreview={preview}
+                leading={<section className={panelClass}><SubscriptionTopicField topics={topics} value={form.data.subscription_topic_id} onChange={(value) => form.setData('subscription_topic_id', value)} error={form.errors.subscription_topic_id} /></section>}
                 footer={({ previewError }) => <>
                     <FieldError message={Object.values(form.errors)[0] || previewError} />
                     <div className="flex justify-end"><button className={buttonClass} disabled={form.processing || Boolean(previewError)}>{form.processing ? 'Saving…' : 'Save template'}</button></div>

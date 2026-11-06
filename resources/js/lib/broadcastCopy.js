@@ -26,6 +26,7 @@ export function sendConfirmText(broadcast, verb = 'Send') {
         const causes = [];
         if (audience.no_destination > 0) causes.push(`no ${noun}`);
         if (audience.suppressed > 0) causes.push('unsubscribed or suppressed');
+        if (audience.unsubscribed_from_topic > 0) causes.push('opted out of this topic');
         skippedSentence = ` ${skipped} will be skipped (${causes.join(', ')}).`;
     }
 

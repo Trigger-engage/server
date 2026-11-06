@@ -1,0 +1,1 @@
+var e={email:`Email`,sms:`SMS`,push:`Push`};function t(t){return e[t]??t}function n(e){return[e.delivered_at&&`Delivered`,e.opened_at&&`Opened`,e.clicked_at&&`Clicked`,e.bounced_at&&`Bounced`].filter(Boolean)}function r(e){let t=`<base target="_blank">`;return e?/<head(\s[^>]*)?>/i.test(e)?e.replace(/<head(\s[^>]*)?>/i,e=>`${e}${t}`):`${t}${e}`:``}export{n,r,t};

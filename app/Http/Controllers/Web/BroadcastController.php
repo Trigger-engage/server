@@ -19,6 +19,7 @@ use TriggerEngage\Server\Models\BroadcastRecipient;
 use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Template;
 use TriggerEngage\Server\Services\BroadcastSender;
+use TriggerEngage\Server\Services\Subscriptions;
 
 class BroadcastController extends Controller
 {
@@ -91,7 +92,7 @@ class BroadcastController extends Controller
             'broadcast' => [
                 ...$broadcast->only([
                     'id', 'name', 'channel', 'status', 'subject', 'body', 'layout',
-                    'preheader', 'settings', 'from_name', 'from_address',
+                    'preheader', 'settings', 'from_name', 'from_address', 'subscription_topic_id',
                 ]),
                 'editable' => $broadcast->isEditable(),
                 'segment' => $broadcast->segment?->only('id', 'name'),
@@ -101,6 +102,7 @@ class BroadcastController extends Controller
             ],
             'preview' => $this->renderPreview($broadcast->messageTemplate()),
             'defaultSettings' => $this->layouts->brandFor($workspace),
+            'topics' => $workspace->subscriptionTopics()->orderBy('name')->get(['id', 'key', 'name']),
         ]);
     }
 
@@ -111,7 +113,10 @@ class BroadcastController extends Controller
         if (! $broadcast->isEditable()) {
             throw ValidationException::withMessages(['broadcast' => 'This broadcast has already been sent and can no longer be edited.']);
         }
-        $data = $request->validate($this->contentRules());
+        $data = $request->validate([
+            ...$this->contentRules(),
+            'subscription_topic_id' => $this->topicRule($workspace->id),
+        ]);
         $data['channel'] = $broadcast->channel;
         $this->validateLiquid($data);
         $broadcast->update($this->normalizedContent($data, $workspace));
@@ -190,7 +195,7 @@ class BroadcastController extends Controller
                 ->orderBy('id')
                 ->paginate(50)->withQueryString()
                 ->through(fn (BroadcastRecipient $recipient) => [
-                    ...$recipient->only(['id', 'status', 'error', 'sent_at']),
+                    ...$recipient->only(['id', 'status', 'error', 'sent_at', 'message_id']),
                     'person' => $recipient->person?->only('id', 'external_id', 'email', 'phone'),
                 ]),
             'filters' => ['status' => $status],
@@ -250,7 +255,7 @@ class BroadcastController extends Controller
      * destination, unsubscribed/suppressed). Counts overlap-safe: `sendable`
      * is the distinct complement, not total minus the sum.
      *
-     * @return array{total: int, sendable: int, no_destination: int, suppressed: int}
+     * @return array{total: int, sendable: int, no_destination: int, suppressed: int, unsubscribed_from_topic: int}
      */
     protected function audiencePreview(Broadcast $broadcast): array
     {
@@ -285,12 +290,29 @@ class BroadcastController extends Controller
             [$broadcast->channel, $broadcast->channel]
         )->first();
 
-        return [
+        $preview = [
             'total' => (int) ($row->total ?? 0),
             'sendable' => (int) ($row->sendable ?? 0),
             'no_destination' => (int) ($row->no_destination ?? 0),
             'suppressed' => (int) ($row->suppressed ?? 0),
+            'unsubscribed_from_topic' => 0,
         ];
+
+        // A topic opt-out is checked by SendBroadcastRecipient after the channel
+        // suppression; two more counts, only for a broadcast that has a topic.
+        $topic = $broadcast->subscription_topic_id ? $broadcast->subscriptionTopic : null;
+        if ($topic) {
+            $subscriptions = app(Subscriptions::class);
+            $preview['unsubscribed_from_topic'] = $subscriptions
+                ->whereUnsubscribedFrom($broadcast->segment->people(), $topic)->count();
+            $preview['sendable'] = $broadcast->segment->people()
+                ->whereRaw($hasDestination)
+                ->whereRaw("not {$suppressed}", [$broadcast->channel])
+                ->whereNot(fn ($query) => $subscriptions->whereUnsubscribedFrom($query, $topic))
+                ->count();
+        }
+
+        return $preview;
     }
 
     /**
@@ -321,6 +343,7 @@ class BroadcastController extends Controller
             'settings' => $content['settings'] ?? null,
             'from_name' => $content['from_name'] ?? null,
             'from_address' => $content['from_address'] ?? null,
+            'subscription_topic_id' => $template->subscription_topic_id,
         ];
     }
 }

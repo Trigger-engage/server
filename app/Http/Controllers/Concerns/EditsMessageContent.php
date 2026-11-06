@@ -82,6 +82,18 @@ trait EditsMessageContent
         ];
     }
 
+    /**
+     * A template or broadcast may name the subscription topic it belongs to;
+     * people who opted out of that topic are skipped. None = only channel-level
+     * unsubscribes apply.
+     *
+     * @return array<int, mixed>
+     */
+    protected function topicRule(int $workspaceId): array
+    {
+        return ['nullable', 'integer', Rule::exists('engage_subscription_topics', 'id')->where('workspace_id', $workspaceId)];
+    }
+
     /** Settings keys that describe delivery rather than the email layout. */
     protected const DELIVERY_SETTINGS = [
         'email' => ['reply_to', 'reply_to_name'],

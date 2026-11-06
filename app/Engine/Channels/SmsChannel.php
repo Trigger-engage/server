@@ -30,6 +30,7 @@ class SmsChannel
                 'workspace_id' => $person->workspace_id,
                 'person_id' => $person->id,
                 'template_id' => $template->id,
+                'subscription_topic_id' => $template->subscription_topic_id,
                 'channel' => 'sms',
                 'to_address' => $person->phone,
                 'body' => $body,

@@ -5,12 +5,15 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
 use TriggerEngage\Server\Engine\EmailLayoutRenderer;
 use TriggerEngage\Server\Mail\TemplatedMail;
 use TriggerEngage\Server\Models\Broadcast;
+use TriggerEngage\Server\Models\Message;
+use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Models\Segment;
 use TriggerEngage\Server\Models\Template;
 
@@ -167,5 +170,21 @@ class WorkspaceBrandTest extends TestCase
             array_diff_key($before, ['accent_color' => true]),
             array_diff_key($renderer->normalizeSettings(Template::find($template->id)->settings, $workspace), ['accent_color' => true]),
         );
+    }
+
+    public function test_the_unsubscribe_and_preference_pages_wear_the_workspace_brand(): void
+    {
+        [$workspace] = $this->makeWorkspace();
+        $workspace->update(['brand' => ['logo_url' => self::LOGO, 'support_email' => 'help@acme.example']]);
+        $person = Person::create(['workspace_id' => $workspace->id, 'external_id' => 'ada', 'email' => 'ada@example.com']);
+        $message = Message::create([
+            'workspace_id' => $workspace->id, 'person_id' => $person->id, 'template_id' => $this->makeEmailTemplate($workspace)->id,
+            'channel' => 'email', 'to_address' => 'ada@example.com', 'status' => 'sent',
+        ]);
+
+        $this->get(URL::temporarySignedRoute('unsubscribe.show', now()->addDay(), ['message' => $message->id]))
+            ->assertOk()->assertSee(self::LOGO)->assertSee('help@acme.example');
+        $this->get(URL::temporarySignedRoute('preferences.show', now()->addDay(), ['person' => $person->id]))
+            ->assertOk()->assertSee(self::LOGO)->assertSee('help@acme.example');
     }
 }

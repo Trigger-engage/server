@@ -1,10 +1,11 @@
 import { Link, router, useForm } from '@inertiajs/react';
 import Layout, { FieldError, StatusBadge, buttonClass, panelClass, secondaryButtonClass } from '../../components/Layout';
 import MessageComposer from '../../components/MessageComposer';
+import SubscriptionTopicField from '../../components/SubscriptionTopicField';
 import { engagePath } from '../../lib/engagePath';
 import { sendConfirmText } from '../../lib/broadcastCopy';
 
-export default function EditBroadcast({ workspace, broadcast, preview, defaultSettings }) {
+export default function EditBroadcast({ workspace, broadcast, preview, defaultSettings, topics = [] }) {
     const editable = broadcast.editable;
     const form = useForm({
         name: broadcast.name,
@@ -16,6 +17,7 @@ export default function EditBroadcast({ workspace, broadcast, preview, defaultSe
         from_name: broadcast.from_name ?? '',
         from_address: broadcast.from_address ?? '',
         settings: broadcast.channel === 'email' ? { ...defaultSettings, ...(broadcast.settings ?? {}) } : broadcast.settings,
+        subscription_topic_id: broadcast.subscription_topic_id ?? null,
     });
 
     const save = (event) => {
@@ -38,6 +40,7 @@ export default function EditBroadcast({ workspace, broadcast, preview, defaultSe
             <Detail label="Delivery channel" value={broadcast.delivery_channel ? `${broadcast.delivery_channel.name} · ${broadcast.delivery_channel.driver}` : '—'} />
             <Detail label="From template" value={broadcast.template?.name ?? '—'} />
         </dl>
+        <div className="mt-5"><SubscriptionTopicField topics={topics} value={form.data.subscription_topic_id} onChange={(value) => form.setData('subscription_topic_id', value)} error={form.errors.subscription_topic_id} disabled={!editable} /></div>
         <p className="mt-4 text-xs text-slate-500">Content below started as a copy of the template. Edits here only affect this broadcast — the template stays untouched.</p>
         {broadcast.status !== 'draft' && <Link href={engagePath(`broadcasts/${broadcast.id}`)} className="mt-3 inline-block text-xs font-medium text-emerald-300 hover:text-emerald-200">View delivery report →</Link>}
     </section>;

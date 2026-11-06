@@ -57,8 +57,9 @@ class TemplateController extends Controller
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
             'template' => $template->only([
                 'id', 'channel', 'name', 'subject', 'body', 'layout', 'preheader',
-                'settings', 'from_name', 'from_address', 'updated_at',
+                'settings', 'from_name', 'from_address', 'subscription_topic_id', 'updated_at',
             ]),
+            'topics' => $workspace->subscriptionTopics()->orderBy('name')->get(['id', 'key', 'name']),
             'preview' => $this->renderPreview($template),
             // What "reset" goes back to: the workspace brand, not the shipped defaults.
             'defaultSettings' => $this->layouts->brandFor($workspace),
@@ -107,7 +108,10 @@ class TemplateController extends Controller
     /** @return array<string, mixed> */
     protected function validated(Request $request): array
     {
-        return $request->validate($this->contentRules());
+        return $request->validate([
+            ...$this->contentRules(),
+            'subscription_topic_id' => $this->topicRule($request->attributes->get('workspace')->id),
+        ]);
     }
 
     protected function ensureWorkspaceOwns(int $workspaceId, Template $template): void
