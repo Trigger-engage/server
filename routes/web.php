@@ -7,6 +7,7 @@ use TriggerEngage\Server\Http\Controllers\Web\BroadcastController;
 use TriggerEngage\Server\Http\Controllers\Web\ChannelController;
 use TriggerEngage\Server\Http\Controllers\Web\DashboardController;
 use TriggerEngage\Server\Http\Controllers\Web\EventDefinitionController;
+use TriggerEngage\Server\Http\Controllers\Web\MessageController;
 use TriggerEngage\Server\Http\Controllers\Web\PersonController;
 use TriggerEngage\Server\Http\Controllers\Web\RunController;
 use TriggerEngage\Server\Http\Controllers\Web\SegmentController;
@@ -35,6 +36,8 @@ Route::put('/automations/{automation}/publish', [AutomationController::class, 'p
 Route::post('/automations/{automation}/pause', [AutomationController::class, 'pause'])->name('automations.pause');
 Route::get('/runs', [RunController::class, 'index'])->name('runs.index');
 Route::get('/runs/{run}', [RunController::class, 'show'])->name('runs.show');
+Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+Route::get('/messages/{message}', [MessageController::class, 'show'])->name('messages.show');
 Route::get('/segments', [SegmentController::class, 'index'])->name('segments.index');
 Route::post('/segments', [SegmentController::class, 'store'])->name('segments.store');
 Route::post('/segments/preview', [SegmentController::class, 'preview'])->name('segments.preview');

@@ -414,3 +414,24 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   card and widened the page (1,382px at a 1,280px viewport, 514px on a 390px phone). It wraps
   now, links never break mid-label, the member-count pill stays on one line, and one member
   reads "1 person".
+
+## Messages log: what was sent, to whom, and what happened
+
+- **A Messages page.** Every email, SMS and push message in the workspace, newest first, with
+  the person, the subject (or the start of the text), where it came from (automation and run,
+  or broadcast) and its status plus the delivered/opened/clicked signals the provider reported.
+  Filters: status (sent, delivered, failed or bounced, still sending, each with a count),
+  channel, automation, broadcast, period, and a search over address, subject and person id.
+  Email rows never load their rendered HTML; SMS and push rows load a 160-character excerpt.
+- **A page per message.** The exact content that went out (email in a sandboxed frame whose
+  links cannot navigate, so the live unsubscribe link in it is inert), the error, attempts,
+  template, provider id, and a delivery timeline that says "Not reported" rather than implying
+  a step didn't happen.
+- **Everything links to it.** The Overview's Messages / Delivered / Failed-or-bounced tiles open
+  the matching 30-day view; the person page lists recent messages and runs and its Runs and
+  Messages counts link to filtered lists; run timelines link each send and show its error;
+  broadcast reports link each recipient's message and the broadcast's whole message list.
+- **Runs can be filtered** by status (including "a step failed": a failed send is skipped by
+  default, so the run still completes green), automation and person, and show
+  "1 step failed" next to the status. Automation and person names are links.
+- 7 feature tests (`MessagesLogTest`).
