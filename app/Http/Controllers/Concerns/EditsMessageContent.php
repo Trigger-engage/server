@@ -5,6 +5,7 @@ namespace TriggerEngage\Server\Http\Controllers\Concerns;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use TriggerEngage\Server\Models\Template;
+use TriggerEngage\Server\Models\Workspace;
 
 /**
  * Shared message authoring: validation rules, normalization, and exact preview
@@ -28,36 +29,7 @@ trait EditsMessageContent
             'from_name' => ['nullable', 'string', 'max:150'],
             'from_address' => ['nullable', 'email', 'max:255'],
             'settings' => ['nullable', 'array'],
-            'settings.brand_name' => ['nullable', 'string', 'max:80'],
-            'settings.brand_suffix' => ['nullable', 'string', 'max:20'],
-            'settings.tagline' => ['nullable', 'string', 'max:160'],
-            'settings.logo_url' => ['nullable', 'url', 'max:2048'],
-            'settings.website_url' => ['nullable', 'url', 'max:2048'],
-            'settings.support_email' => ['nullable', 'email', 'max:255'],
-            'settings.background_color' => $this->hexColorRule(),
-            'settings.card_color' => $this->hexColorRule(),
-            'settings.heading_color' => $this->hexColorRule(),
-            'settings.text_color' => $this->hexColorRule(),
-            'settings.muted_color' => $this->hexColorRule(),
-            'settings.footer_color' => $this->hexColorRule(),
-            'settings.footer_divider_color' => $this->hexColorRule(),
-            'settings.accent_color' => $this->hexColorRule(),
-            'settings.show_app_badges' => ['nullable', 'boolean'],
-            'settings.badge_caption' => ['nullable', 'string', 'max:160'],
-            'settings.app_store_url' => ['nullable', 'url', 'max:2048'],
-            'settings.app_store_badge_url' => ['nullable', 'url', 'max:2048'],
-            'settings.play_store_url' => ['nullable', 'url', 'max:2048'],
-            'settings.play_store_badge_url' => ['nullable', 'url', 'max:2048'],
-            'settings.show_social_links' => ['nullable', 'boolean'],
-            'settings.instagram_url' => ['nullable', 'url', 'max:2048'],
-            'settings.youtube_url' => ['nullable', 'url', 'max:2048'],
-            'settings.facebook_url' => ['nullable', 'url', 'max:2048'],
-            'settings.tiktok_url' => ['nullable', 'url', 'max:2048'],
-            'settings.linkedin_url' => ['nullable', 'url', 'max:2048'],
-            'settings.x_url' => ['nullable', 'url', 'max:2048'],
-            'settings.footer_note' => ['nullable', 'string', 'max:1000'],
-            'settings.crisis_text' => ['nullable', 'string', 'max:1000'],
-            'settings.company_line' => ['nullable', 'string', 'max:255'],
+            ...$this->brandRules('settings.'),
             // Delivery settings, kept apart from the layout keys above: where a
             // push tap lands (Liquid allowed, so no url rule), what rides along
             // with it, and who a reply to an email reaches.
@@ -66,6 +38,60 @@ trait EditsMessageContent
             'settings.reply_to' => ['nullable', 'email', 'max:255'],
             'settings.reply_to_name' => ['nullable', 'string', 'max:150'],
         ];
+    }
+
+    /**
+     * Validation for the email layout's brand keys, shared by the template and
+     * broadcast composers and the workspace Brand page.
+     *
+     * @return array<string, mixed>
+     */
+    protected function brandRules(string $prefix = ''): array
+    {
+        return [
+            $prefix.'brand_name' => ['nullable', 'string', 'max:80'],
+            $prefix.'brand_suffix' => ['nullable', 'string', 'max:20'],
+            $prefix.'tagline' => ['nullable', 'string', 'max:160'],
+            $prefix.'logo_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'website_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'support_email' => ['nullable', 'email', 'max:255'],
+            $prefix.'background_color' => $this->hexColorRule(),
+            $prefix.'card_color' => $this->hexColorRule(),
+            $prefix.'heading_color' => $this->hexColorRule(),
+            $prefix.'text_color' => $this->hexColorRule(),
+            $prefix.'muted_color' => $this->hexColorRule(),
+            $prefix.'footer_color' => $this->hexColorRule(),
+            $prefix.'footer_divider_color' => $this->hexColorRule(),
+            $prefix.'accent_color' => $this->hexColorRule(),
+            $prefix.'show_app_badges' => ['nullable', 'boolean'],
+            $prefix.'badge_caption' => ['nullable', 'string', 'max:160'],
+            $prefix.'app_store_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'app_store_badge_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'play_store_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'play_store_badge_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'show_social_links' => ['nullable', 'boolean'],
+            $prefix.'instagram_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'youtube_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'facebook_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'tiktok_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'linkedin_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'x_url' => ['nullable', 'url', 'max:2048'],
+            $prefix.'footer_note' => ['nullable', 'string', 'max:1000'],
+            $prefix.'crisis_text' => ['nullable', 'string', 'max:1000'],
+            $prefix.'company_line' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * A template or broadcast may name the subscription topic it belongs to;
+     * people who opted out of that topic are skipped. None = only channel-level
+     * unsubscribes apply.
+     *
+     * @return array<int, mixed>
+     */
+    protected function topicRule(int $workspaceId): array
+    {
+        return ['nullable', 'integer', Rule::exists('engage_subscription_topics', 'id')->where('workspace_id', $workspaceId)];
     }
 
     /** Settings keys that describe delivery rather than the email layout. */
@@ -114,7 +140,7 @@ trait EditsMessageContent
         $delivery = $this->deliverySettings($template->settings, $template->channel);
 
         return $template->channel === 'email'
-            ? array_merge($this->layouts->normalizeSettings($template->settings), $delivery)
+            ? array_merge($this->layouts->normalizeSettings($template->settings, $template->workspace), $delivery)
             : $delivery;
     }
 
@@ -124,7 +150,7 @@ trait EditsMessageContent
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    protected function normalizedContent(array $data): array
+    protected function normalizedContent(array $data, ?Workspace $workspace = null): array
     {
         $delivery = $this->deliverySettings($data['settings'] ?? null, $data['channel']);
 
@@ -135,7 +161,9 @@ trait EditsMessageContent
         return [
             ...$data,
             'layout' => $data['layout'] ?? config('email_templates.default_layout', 'mytherapist'),
-            'settings' => array_merge($this->layouts->normalizeSettings($data['settings'] ?? []), $delivery),
+            // Only what differs from the workspace brand is stored, so a template
+            // keeps following the brand for everything it didn't change.
+            'settings' => array_merge($this->layouts->overridesFrom($data['settings'] ?? [], $workspace), $delivery) ?: null,
         ];
     }
 

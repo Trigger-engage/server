@@ -304,9 +304,12 @@ class ManagementUiTest extends TestCase
         $settings = $email->fresh()->settings;
         $this->assertSame('support@mytherapist.ng', $settings['reply_to']);
         $this->assertSame('Care team', $settings['reply_to_name']);
-        $this->assertArrayHasKey('accent_color', $settings, 'Layout settings must still be filled in beside the delivery ones.');
+        $this->assertArrayNotHasKey('accent_color', $settings, 'Only what differs from the workspace brand is stored.');
         $this->get('/app/templates/'.$email->id.'/edit', $headers)
-            ->assertInertia(fn (Assert $page) => $page->where('template.settings.reply_to', 'support@mytherapist.ng'));
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('template.settings.reply_to', 'support@mytherapist.ng')
+                // The editor still shows every layout setting, filled from the brand.
+                ->where('template.settings.accent_color', '#FED325'));
 
         $this->put('/app/templates/'.$email->id, [
             'channel' => 'email', 'name' => 'Welcome', 'subject' => 'Hi', 'body' => '<p>Hi</p>',

@@ -40,7 +40,8 @@ class TemplateController extends Controller
     {
         $data = $this->validated($request);
         $this->validateLiquid($data);
-        $template = $request->attributes->get('workspace')->templates()->create($this->normalizedContent($data));
+        $workspace = $request->attributes->get('workspace');
+        $template = $workspace->templates()->create($this->normalizedContent($data, $workspace));
 
         return redirect()->route('engage.templates.edit', $template)
             ->with('success', 'Template created. Customize the design and preview it before using it.');
@@ -56,10 +57,12 @@ class TemplateController extends Controller
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
             'template' => $template->only([
                 'id', 'channel', 'name', 'subject', 'body', 'layout', 'preheader',
-                'settings', 'from_name', 'from_address', 'updated_at',
+                'settings', 'from_name', 'from_address', 'subscription_topic_id', 'updated_at',
             ]),
+            'topics' => $workspace->subscriptionTopics()->orderBy('name')->get(['id', 'key', 'name']),
             'preview' => $this->renderPreview($template),
-            'defaultSettings' => $this->layouts->defaultSettings(),
+            // What "reset" goes back to: the workspace brand, not the shipped defaults.
+            'defaultSettings' => $this->layouts->brandFor($workspace),
         ]);
     }
 
@@ -70,7 +73,7 @@ class TemplateController extends Controller
         $data = $this->validated($request);
         $data['channel'] = $template->channel;
         $this->validateLiquid($data);
-        $template->update($this->normalizedContent($data));
+        $template->update($this->normalizedContent($data, $workspace));
 
         return back()->with('success', 'Template saved. Future sends will use this version.');
     }
@@ -89,7 +92,9 @@ class TemplateController extends Controller
         $data = $validator->validated();
 
         try {
-            $template = new Template($this->normalizedContent($data));
+            $workspace = $request->attributes->get('workspace');
+            $template = new Template($this->normalizedContent($data, $workspace));
+            $template->setRelation('workspace', $workspace);
             $preview = $this->renderPreview($template);
         } catch (\Throwable $exception) {
             throw ValidationException::withMessages([
@@ -103,7 +108,10 @@ class TemplateController extends Controller
     /** @return array<string, mixed> */
     protected function validated(Request $request): array
     {
-        return $request->validate($this->contentRules());
+        return $request->validate([
+            ...$this->contentRules(),
+            'subscription_topic_id' => $this->topicRule($request->attributes->get('workspace')->id),
+        ]);
     }
 
     protected function ensureWorkspaceOwns(int $workspaceId, Template $template): void

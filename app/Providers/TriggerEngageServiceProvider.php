@@ -12,6 +12,7 @@ use TriggerEngage\Server\Console\Commands\CreateWorkspace;
 use TriggerEngage\Server\Console\Commands\EngageTick;
 use TriggerEngage\Server\Console\Commands\InstallTriggerEngage;
 use TriggerEngage\Server\Contracts\WorkspaceResolver;
+use TriggerEngage\Server\Http\Controllers\Web\PreferenceCenterController;
 use TriggerEngage\Server\Http\Controllers\Web\UnsubscribeController;
 use TriggerEngage\Server\Http\Middleware\AuthenticateClient;
 use TriggerEngage\Server\Http\Middleware\AuthenticateWorkspace;
@@ -96,7 +97,16 @@ class TriggerEngageServiceProvider extends ServiceProvider
         Route::middleware('web')->prefix($publicPrefix)->group(function (): void {
             Route::get('/unsubscribe/{message}', [UnsubscribeController::class, 'show'])->middleware('signed')->name('unsubscribe.show');
             Route::post('/unsubscribe/{message}', [UnsubscribeController::class, 'destroy'])->middleware('signed')->name('unsubscribe.destroy');
+            Route::post('/unsubscribe/{message}/undo', [UnsubscribeController::class, 'undo'])->middleware('signed')->name('unsubscribe.undo');
+            Route::get('/preferences/{person}', [PreferenceCenterController::class, 'show'])->middleware('signed')->name('preferences.show');
+            Route::post('/preferences/{person}', [PreferenceCenterController::class, 'update'])->middleware('signed')->name('preferences.update');
         });
+
+        // Mailbox providers POST here with no session or CSRF token (RFC 8058),
+        // so this one route stays outside the web group.
+        Route::middleware([SubstituteBindings::class, 'signed', 'throttle:60,1'])->prefix($publicPrefix)
+            ->post('/unsubscribe/{message}/one-click', [UnsubscribeController::class, 'oneClick'])
+            ->name('unsubscribe.one-click');
 
         if (! $embedded) {
             Route::redirect('/', '/'.$management);

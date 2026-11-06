@@ -10,6 +10,10 @@ class Workspace extends Model
 {
     protected $guarded = [];
 
+    protected $casts = [
+        'brand' => 'array',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (Workspace $workspace) {
@@ -61,5 +65,10 @@ class Workspace extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
+    }
+
+    public function subscriptionTopics(): HasMany
+    {
+        return $this->hasMany(SubscriptionTopic::class);
     }
 }

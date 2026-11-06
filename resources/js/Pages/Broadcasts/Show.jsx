@@ -12,6 +12,7 @@ const KNOWN_REASONS = {
         push: 'No push destination on this profile',
     },
     'Person is suppressed for this channel.': 'Unsubscribed or suppressed',
+    'Person unsubscribed from this topic.': 'Opted out of this topic',
 };
 
 function reasonLabel(error, channel) {
@@ -53,6 +54,7 @@ export default function Show({ workspace, broadcast, counts, reasons, recipients
             {broadcast.started_at && <span>Started {new Date(broadcast.started_at).toLocaleString()}</span>}
             {broadcast.completed_at && <span>Finished {new Date(broadcast.completed_at).toLocaleString()}</span>}
             <Link href={engagePath(`broadcasts/${broadcast.id}/edit`)} className="font-medium text-emerald-300 hover:text-emerald-200">View message content →</Link>
+            <Link href={engagePath(`messages?broadcast=${broadcast.id}`)} className="font-medium text-emerald-300 hover:text-emerald-200">Delivery per message →</Link>
         </div>
 
         <section className={`${panelClass} mt-6`}>
@@ -139,7 +141,10 @@ export default function Show({ workspace, broadcast, counts, reasons, recipients
                                             ? (label ?? <span className="break-words font-mono">{recipient.error}</span>)
                                             : '—'}
                                     </td>
-                                    <td className="py-3 text-xs text-slate-400">{recipient.sent_at ? new Date(recipient.sent_at).toLocaleString() : '—'}</td>
+                                    <td className="py-3 text-xs text-slate-400">
+                                        {recipient.sent_at ? new Date(recipient.sent_at).toLocaleString() : '—'}
+                                        {recipient.message_id && <Link href={engagePath(`messages/${recipient.message_id}`)} className="ml-2 font-medium text-emerald-300 hover:text-emerald-200">View message</Link>}
+                                    </td>
                                 </tr>;
                             })}
                         </tbody>

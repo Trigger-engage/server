@@ -4,11 +4,13 @@ namespace TriggerEngage\Server\Http\Controllers\Web;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use TriggerEngage\Server\Http\Controllers\Controller;
 use TriggerEngage\Server\Models\Person;
 use TriggerEngage\Server\Services\Ingest;
+use TriggerEngage\Server\Services\Subscriptions;
 
 class PersonController extends Controller
 {
@@ -71,7 +73,34 @@ class PersonController extends Controller
             ],
             'segments' => $person->segments()->orderBy('name')->get(['segments.id', 'public_id', 'name', 'type']),
             'recentEvents' => $person->occurrences()->with('event:id,name')->latest('occurred_at')->limit(10)->get(['id', 'event_id', 'payload', 'occurred_at']),
+            'recentMessages' => $person->messages()->orderByDesc('id')->limit(5)
+                ->get(['id', 'person_id', 'channel', 'to_address', 'subject', 'status', 'created_at']),
+            'recentRuns' => $person->automationRuns()->with('automation:id,name')->orderByDesc('id')->limit(5)
+                ->get(['id', 'automation_id', 'person_id', 'status', 'created_at']),
+            'subscriptions' => app(Subscriptions::class)->state($person),
         ]);
+    }
+
+    /** One switch on the person's Subscriptions panel: a topic or a whole channel. */
+    public function updateSubscription(Request $request, Person $person, Subscriptions $subscriptions): RedirectResponse
+    {
+        $workspace = $request->attributes->get('workspace');
+        $this->ensureOwned($workspace->id, $person);
+        $data = $request->validate([
+            'scope' => ['required', Rule::in(['topic', 'channel'])],
+            'target' => ['required', 'string'],
+            'subscribed' => ['required', 'boolean'],
+        ]);
+
+        if ($data['scope'] === 'channel') {
+            abort_unless(in_array($data['target'], Subscriptions::CHANNELS, true), 422);
+            $subscriptions->setChannel($person, $data['target'], (bool) $data['subscribed'], 'dashboard');
+        } else {
+            $topic = $workspace->subscriptionTopics()->where('key', $data['target'])->firstOrFail();
+            $subscriptions->setTopic($person, $topic, (bool) $data['subscribed'], 'dashboard');
+        }
+
+        return back()->with('success', $data['subscribed'] ? 'Subscribed again.' : 'Unsubscribed.');
     }
 
     public function update(Request $request, Person $person, Ingest $ingest): RedirectResponse
