@@ -415,6 +415,57 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   now, links never break mid-label, the member-count pill stays on one line, and one member
   reads "1 person".
 
+## Messages log: what was sent, to whom, and what happened
+
+- **A Messages page.** Every email, SMS and push message in the workspace, newest first, with
+  the person, the subject (or the start of the text), where it came from (automation and run,
+  or broadcast) and its status plus the delivered/opened/clicked signals the provider reported.
+  Filters: status (sent, delivered, failed or bounced, still sending, each with a count),
+  channel, automation, broadcast, period, and a search over address, subject and person id.
+  Email rows never load their rendered HTML; SMS and push rows load a 160-character excerpt.
+- **A page per message.** The exact content that went out (email in a sandboxed frame whose
+  links cannot navigate, so the live unsubscribe link in it is inert), the error, attempts,
+  template, provider id, and a delivery timeline that says "Not reported" rather than implying
+  a step didn't happen.
+- **Everything links to it.** The Overview's Messages / Delivered / Failed-or-bounced tiles open
+  the matching 30-day view; the person page lists recent messages and runs and its Runs and
+  Messages counts link to filtered lists; run timelines link each send and show its error;
+  broadcast reports link each recipient's message and the broadcast's whole message list.
+- **Runs can be filtered** by status (including "a step failed": a failed send is skipped by
+  default, so the run still completes green), automation and person, and show
+  "1 step failed" next to the status. Automation and person names are links.
+- 7 feature tests (`MessagesLogTest`).
+
+## Subscription topics and a real unsubscribe page
+
+- **Topics.** A workspace defines subscription topics ("Care reminders", "Product news") on a new
+  Subscriptions page, each either everyone-until-they-opt-out or opt-in only. A template or a
+  broadcast names its topic (a broadcast copies its template's and can change it); the engine
+  and the broadcast sender skip anyone who opted out ("person unsubscribed from Care
+  reminders" on the run step, "Opted out of this topic" in the delivery report), and the
+  broadcast send confirmation counts them. Messages record their topic.
+- **A topic can follow a profile property.** Name a true/false property (Mytherapist.ng's
+  `email_communication`) and the host app's setting is the preference, so broadcasts finally
+  respect the same opt-outs the Ify journeys check with gate steps. Changing such a topic writes
+  the property back and fires `SubscriptionChanged`; an embedded host listens for it to save the
+  choice in its own settings, or its next profile sync puts the old value back.
+- **One store per layer.** Channel-level unsubscribes stay `suppressions` rows (channel or
+  'all') plus the legacy `people.unsubscribed_at`; `Services\Subscriptions` is the only code that
+  reads or changes either. Resubscribing one channel after "everything" leaves the other channels
+  off. A bounce or spam complaint can only be lifted from the dashboard, after a warning.
+- **The unsubscribe page** is branded (logo, colours, support address from the message's
+  template), names the topic ("Stop “Care reminders” emails?"), offers "stop all emails instead",
+  confirms with an undo, and links to a **preference centre** (signed, per person) with every topic
+  and every channel the person can be reached on. It no longer says "workspace" or "sms".
+- **One-click unsubscribe (RFC 8058).** Every email carries `List-Unsubscribe` and
+  `List-Unsubscribe-Post`; mailbox providers POST to a signed route outside the web middleware
+  group (no session, no CSRF). Gmail and Yahoo require this of bulk senders.
+- **Person page** has a Subscriptions panel with a switch per channel and per topic.
+  **API:** `GET|PUT /api/v1/people/{id}/subscriptions` with `{"topics": {"key": bool}, "channels": {"sms": bool}}`.
+- New tables are prefixed (`engage_subscription_topics`, `engage_subscription_preferences`) like
+  `engage_api_keys`, so they cannot collide with a host's tables. 12 feature tests
+  (`SubscriptionPreferencesTest`).
+
 ## Channels can be edited, re-tested and deleted
 
 - **Edit in place.** Rename a channel, change its credentials, or move it to another driver of

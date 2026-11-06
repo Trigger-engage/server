@@ -14,6 +14,7 @@ use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Message;
 use TriggerEngage\Server\Models\RunStep;
 use TriggerEngage\Server\Models\Template;
+use TriggerEngage\Server\Services\Subscriptions;
 
 class RunEngine
 {
@@ -33,6 +34,7 @@ class RunEngine
         protected SmsChannel $sms,
         protected PushChannel $push,
         protected EventWaitManager $eventWaits,
+        protected Subscriptions $subscriptions,
     ) {}
 
     /**
@@ -290,6 +292,15 @@ class RunEngine
             ]);
 
             return $this->failureOutcome($node);
+        }
+
+        if (! $this->subscriptions->allowsTopic($person, $template->subscription_topic_id)) {
+            $step->update([
+                'status' => 'skipped',
+                'output' => ['reason' => 'person unsubscribed from '.($template->subscriptionTopic?->name ?? 'this topic')],
+            ]);
+
+            return self::SEND_TERMINAL;
         }
 
         $result = match ($channelType) {

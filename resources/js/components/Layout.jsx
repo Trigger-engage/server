@@ -9,9 +9,11 @@ const navigation = [
     { label: 'Automations', href: engagePath('automations'), icon: 'automations' },
     { label: 'Events', href: engagePath('events'), icon: 'events' },
     { label: 'Segments', href: engagePath('segments'), icon: 'segments' },
+    { label: 'Subscriptions', href: engagePath('subscriptions'), icon: 'subscriptions' },
     { label: 'Templates', href: engagePath('templates'), icon: 'templates' },
     { label: 'Channels', href: engagePath('channels'), icon: 'channels' },
     { label: 'Broadcasts', href: engagePath('broadcasts'), icon: 'broadcasts' },
+    { label: 'Messages', href: engagePath('messages'), icon: 'messages' },
     { label: 'Runs', href: engagePath('runs'), icon: 'runs' },
 ];
 
@@ -67,9 +69,11 @@ function NavIcon({ name, active = false }) {
         automations: <><path d="M4 6h10" /><path d="M18 6h2" /><path d="M10 12h10" /><path d="M4 12h2" /><path d="M4 18h10" /><path d="M18 18h2" /><circle cx="16" cy="6" r="2" /><circle cx="8" cy="12" r="2" /><circle cx="16" cy="18" r="2" /></>,
         events: <><path d="M13 2 4.1 12.7a1 1 0 0 0 .8 1.6H11l-1 7.7 8.9-10.7a1 1 0 0 0-.8-1.6H12L13 2Z" /></>,
         segments: <><circle cx="8" cy="8" r="3" /><circle cx="17" cy="7" r="2" /><path d="M2.5 20a5.5 5.5 0 0 1 11 0M13 15.5a4.5 4.5 0 0 1 8.5 2" /></>,
+        subscriptions: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>,
         templates: <><path d="M6 2h9l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h6" /></>,
         channels: <><path d="M4 4h16v12H5.2L4 17.2V4Z" /><path d="m7 8 5 3 5-3" /><path d="M8 20h8" /></>,
         broadcasts: <><path d="m3 11 16-7v16L3 13v-2Z" /><path d="M7 14.8V20h4v-3.5" /></>,
+        messages: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
         runs: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
         menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
     };
@@ -94,12 +98,16 @@ export function FieldError({ message }) {
 const STATUS_BADGE_STYLES = {
     completed: 'bg-emerald-400/10 text-emerald-300',
     sent: 'bg-emerald-400/10 text-emerald-300',
+    delivered: 'bg-emerald-400/10 text-emerald-300',
     active: 'bg-emerald-400/10 text-emerald-300',
     draft: 'bg-slate-400/10 text-slate-300',
     queued: 'bg-slate-400/10 text-slate-300',
     skipped: 'bg-amber-400/10 text-amber-200',
     sending: 'bg-amber-400/10 text-amber-200',
     paused: 'bg-amber-400/10 text-amber-200',
+    running: 'bg-amber-400/10 text-amber-200',
+    waiting: 'bg-amber-400/10 text-amber-200',
+    waiting_event: 'bg-amber-400/10 text-amber-200',
     failed: 'bg-rose-400/10 text-rose-300',
     bounced: 'bg-rose-400/10 text-rose-300',
 };

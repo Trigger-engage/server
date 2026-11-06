@@ -42,6 +42,7 @@ class Broadcast extends Model
         $template->settings = $this->settings ?? $base?->settings;
         $template->from_name = $this->from_name ?: $base?->from_name;
         $template->from_address = $this->from_address ?: $base?->from_address;
+        $template->subscription_topic_id = $this->subscription_topic_id;
 
         return $template;
     }
@@ -69,5 +70,10 @@ class Broadcast extends Model
     public function recipients(): HasMany
     {
         return $this->hasMany(BroadcastRecipient::class);
+    }
+
+    public function subscriptionTopic(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionTopic::class);
     }
 }

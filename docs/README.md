@@ -17,6 +17,7 @@ Start with the [origin story](marketing/why.md), then [Concepts](CONCEPTS.md).
 |---|---|
 | [Building journeys](guides/automations.md) | Every automation node — delay, branch, wait-for-event, A/B split, goal |
 | [Segments](guides/segments.md) | Manual, event-driven, and rule-based behavioural audiences |
+| [Subscriptions](guides/subscriptions.md) | Topics, opt-outs, the unsubscribe page and preference centre |
 | [A/B testing](guides/ab-testing.md) | Weighted, deterministic message splits and reading results |
 | [Anonymous → identified](guides/anonymous-identity.md) | Track before signup, then merge the history |
 | [Analytics](guides/analytics.md) | The time-series metrics dashboard |
