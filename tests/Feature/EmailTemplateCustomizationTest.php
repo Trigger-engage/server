@@ -32,10 +32,14 @@ class EmailTemplateCustomizationTest extends TestCase
         $template = Template::sole();
         $response->assertRedirect('/app/templates/'.$template->id.'/edit');
         $this->assertSame('mytherapist', $template->layout);
-        $this->assertSame('#FFFAF4', $template->settings['background_color']);
-        $this->assertSame('#FED325', $template->settings['accent_color']);
-        $this->assertSame('https://mytherapist.ng/assets/images/email/logo.png', $template->settings['logo_url']);
-        $this->assertTrue($template->settings['show_app_badges']);
+        // Nothing was changed, so nothing is stored: the template follows the brand.
+        $this->assertNull($template->settings);
+        $this->get('/app/templates/'.$template->id.'/edit', $this->authHeaders($workspace, $key))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('template.settings.background_color', '#FFFAF4')
+                ->where('template.settings.accent_color', '#FED325')
+                ->where('template.settings.logo_url', 'https://mytherapist.ng/assets/images/email/logo.png')
+                ->where('template.settings.show_app_badges', true));
     }
 
     public function test_preview_uses_sample_liquid_context_and_custom_brand_settings(): void

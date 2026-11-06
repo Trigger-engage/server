@@ -10,6 +10,10 @@ class Workspace extends Model
 {
     protected $guarded = [];
 
+    protected $casts = [
+        'brand' => 'array',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (Workspace $workspace) {

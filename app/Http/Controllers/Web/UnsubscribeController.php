@@ -84,7 +84,7 @@ class UnsubscribeController extends Controller
             'message' => $message,
             'topic' => $message->subscriptionTopic,
             'workspace' => $message->workspace,
-            'brand' => $this->layouts->normalizeSettings($message->template?->settings),
+            'brand' => $this->layouts->normalizeSettings($message->template?->settings, $message->workspace),
             'channelNoun' => self::channelNoun($message->channel),
             'undoUrl' => URL::temporarySignedRoute('unsubscribe.undo', now()->addDay(), ['message' => $message->id]),
             'preferencesUrl' => URL::temporarySignedRoute('preferences.show', now()->addDays(30), ['person' => $message->person_id]),

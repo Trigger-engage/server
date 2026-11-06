@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use TriggerEngage\Server\Http\Controllers\Web\AnalyticsController;
 use TriggerEngage\Server\Http\Controllers\Web\AutomationController;
+use TriggerEngage\Server\Http\Controllers\Web\BrandController;
 use TriggerEngage\Server\Http\Controllers\Web\BroadcastController;
 use TriggerEngage\Server\Http\Controllers\Web\ChannelController;
 use TriggerEngage\Server\Http\Controllers\Web\DashboardController;
@@ -28,6 +29,9 @@ Route::post('/subscriptions', [SubscriptionTopicController::class, 'store'])->na
 Route::put('/subscriptions/{topic}', [SubscriptionTopicController::class, 'update'])->name('subscriptions.update');
 Route::delete('/subscriptions/{topic}', [SubscriptionTopicController::class, 'destroy'])->name('subscriptions.destroy');
 Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+Route::get('/brand', [BrandController::class, 'edit'])->name('brand.edit');
+Route::put('/brand', [BrandController::class, 'update'])->name('brand.update');
+Route::delete('/brand', [BrandController::class, 'destroy'])->name('brand.destroy');
 Route::post('/templates/preview', [TemplateController::class, 'preview'])->name('templates.preview');
 Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
 Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');

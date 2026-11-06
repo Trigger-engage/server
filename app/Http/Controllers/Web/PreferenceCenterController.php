@@ -31,7 +31,7 @@ class PreferenceCenterController extends Controller
             'person' => $person,
             'workspace' => $person->workspace,
             'state' => $this->subscriptions->state($person),
-            'brand' => $this->layouts->normalizeSettings(null),
+            'brand' => $this->layouts->brandFor($person->workspace),
             'saved' => session('preferences_saved'),
         ]);
     }

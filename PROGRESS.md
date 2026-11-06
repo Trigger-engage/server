@@ -484,3 +484,25 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   a copy button, SMTP says it has no delivery receipts, Expo says receipts are polled, and a log
   channel carries an amber "no one receives these" warning.
 - 10 feature tests (`ChannelManagementTest`).
+
+## One brand per workspace
+
+- **A Brand page** sets the logo, name, tagline, links, colours, app badges and footer copy for
+  every branded email in the workspace, with a live preview rendered through the real layout.
+  It stores only what differs from `config('email_templates')`, and "Reset to defaults" clears it.
+- **Templates and broadcasts store only their overrides.** The composer still shows every brand
+  setting (filled from the workspace brand), but saving keeps just the keys that differ from it,
+  so a new logo reaches every email that didn't pick its own. The composer says how many
+  settings differ and "Use workspace brand" resets them; "Restore Mytherapist.ng", the host's
+  brand hard-coded into the open-source UI, is gone. The Brand page lists templates that
+  override part of it, and which parts.
+- **Resolution** is one function, `EmailLayoutRenderer::normalizeSettings($settings, $workspace)`:
+  configured defaults, then the workspace brand, then the message's overrides. Sends, previews,
+  the template editor and the broadcast composer all go through it.
+- **Migration** `2026_11_06_000018` adds `workspaces.brand` and slims every email template's and
+  broadcast's stored settings to the keys that differ from the defaults they were edited
+  against (hex colours compared case-insensitively). With no brand set yet, every email renders
+  exactly as before; delivery settings (reply-to, push URL and data) are untouched.
+- The unsubscribe page and preference centre use the workspace brand too.
+- 8 feature tests (`WorkspaceBrandTest`, including the migration on old-style rows); two older
+  tests now assert that brand keys are filled in the editor rather than stored on the template.

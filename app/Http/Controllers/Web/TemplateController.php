@@ -40,7 +40,8 @@ class TemplateController extends Controller
     {
         $data = $this->validated($request);
         $this->validateLiquid($data);
-        $template = $request->attributes->get('workspace')->templates()->create($this->normalizedContent($data));
+        $workspace = $request->attributes->get('workspace');
+        $template = $workspace->templates()->create($this->normalizedContent($data, $workspace));
 
         return redirect()->route('engage.templates.edit', $template)
             ->with('success', 'Template created. Customize the design and preview it before using it.');
@@ -60,7 +61,8 @@ class TemplateController extends Controller
             ]),
             'topics' => $workspace->subscriptionTopics()->orderBy('name')->get(['id', 'key', 'name']),
             'preview' => $this->renderPreview($template),
-            'defaultSettings' => $this->layouts->defaultSettings(),
+            // What "reset" goes back to: the workspace brand, not the shipped defaults.
+            'defaultSettings' => $this->layouts->brandFor($workspace),
         ]);
     }
 
@@ -71,7 +73,7 @@ class TemplateController extends Controller
         $data = $this->validated($request);
         $data['channel'] = $template->channel;
         $this->validateLiquid($data);
-        $template->update($this->normalizedContent($data));
+        $template->update($this->normalizedContent($data, $workspace));
 
         return back()->with('success', 'Template saved. Future sends will use this version.');
     }
@@ -90,7 +92,9 @@ class TemplateController extends Controller
         $data = $validator->validated();
 
         try {
-            $template = new Template($this->normalizedContent($data));
+            $workspace = $request->attributes->get('workspace');
+            $template = new Template($this->normalizedContent($data, $workspace));
+            $template->setRelation('workspace', $workspace);
             $preview = $this->renderPreview($template);
         } catch (\Throwable $exception) {
             throw ValidationException::withMessages([
