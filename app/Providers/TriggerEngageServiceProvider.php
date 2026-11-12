@@ -15,6 +15,7 @@ use TriggerEngage\Server\Contracts\WorkspaceResolver;
 use TriggerEngage\Server\Http\Controllers\Web\PreferenceCenterController;
 use TriggerEngage\Server\Http\Controllers\Web\UnsubscribeController;
 use TriggerEngage\Server\Http\Middleware\AuthenticateClient;
+use TriggerEngage\Server\Http\Middleware\AuthenticateMcp;
 use TriggerEngage\Server\Http\Middleware\AuthenticateWorkspace;
 use TriggerEngage\Server\Http\Middleware\AuthorizeDashboard;
 use TriggerEngage\Server\Http\Middleware\HandleInertiaRequests;
@@ -50,6 +51,7 @@ class TriggerEngageServiceProvider extends ServiceProvider
         $router->aliasMiddleware('trigger-engage.auth', AuthenticateWorkspace::class);
         $router->aliasMiddleware('trigger-engage.authorize', AuthorizeDashboard::class);
         $router->aliasMiddleware('trigger-engage.workspace', ResolveEmbeddedWorkspace::class);
+        $router->aliasMiddleware('trigger-engage.mcp', AuthenticateMcp::class);
 
         $this->registerRoutes();
 
@@ -92,6 +94,15 @@ class TriggerEngageServiceProvider extends ServiceProvider
         Route::middleware(['api', 'throttle:240,1', AuthenticateClient::class])
             ->prefix(config('trigger-engage-server.routes.api_prefix').'/client')
             ->group($this->root.'/routes/client.php');
+
+        if (config('trigger-engage-server.mcp.enabled')) {
+            Route::middleware([
+                ...config('trigger-engage-server.mcp.middleware', ['api', 'trigger-engage.mcp']),
+                'throttle:'.max(1, (int) config('trigger-engage-server.mcp.rate_limit', 120)).',1',
+            ])
+                ->prefix(config('trigger-engage-server.mcp.path', 'mcp'))
+                ->group($this->root.'/routes/mcp.php');
+        }
 
         $publicPrefix = config('trigger-engage-server.routes.unsubscribe_prefix');
         Route::middleware('web')->prefix($publicPrefix)->group(function (): void {
