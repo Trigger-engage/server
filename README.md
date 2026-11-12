@@ -180,6 +180,23 @@ period-over-period deltas, across a 7/14/30/90-day window. Delivered/opened/clic
 depend on provider [delivery webhooks](PRODUCTION.md#provider-configuration). See the
 [analytics guide](docs/guides/analytics.md).
 
+## MCP server for AI agents
+
+`POST /mcp` serves a read-only [Model Context Protocol](https://modelcontextprotocol.io) server, so
+Claude Code, Claude Desktop, Cursor and other agents can read people, segments, journeys, runs and
+messages, and run `diagnose_delivery` to find out why someone didn't get a message. Connect it with
+a server key:
+
+```bash
+claude mcp add --transport http trigger-engage https://engage.example.com/mcp \
+  --header "Authorization: Bearer te_your_server_key"
+```
+
+Contact details come back masked, and tokens and signed links are always redacted. Embedded hosts
+switch it on with `TRIGGER_ENGAGE_MCP_ENABLED=true`. With `TRIGGER_ENGAGE_MCP_WRITES=true` agents can
+also draft templates, segments, broadcasts and journeys; a person still sends or publishes them. See the
+[MCP guide](docs/guides/mcp.md).
+
 ## Engine guarantees
 
 - **No double-sends:** each run/node execution is recorded under a unique

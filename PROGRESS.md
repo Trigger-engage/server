@@ -529,3 +529,34 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   standalone dashboard won't revoke its last server key, which it signs in with.
 - The browser and React Native SDK is a separate package, `@trigger-engage/js` (`js-sdk/` in the
   monorepo). API reference in `docs/API.md`. 10 feature tests (`ClientApiTest`).
+
+## MCP server for AI agents (read-only)
+
+- **`POST /mcp`** (embedded: `/trigger-engage/mcp`, opt-in with `TRIGGER_ENGAGE_MCP_ENABLED`) is a
+  stateless Streamable-HTTP MCP server, authenticated with a server key as a Bearer token or the
+  API's Basic pair. Client keys and revoked keys are refused. It has 23 read-only tools covering the
+  workspace, events, attributes, channels, topics, people, segments (with live rule previews),
+  templates (rendered for a real person), automations as plain-language steps with per-step
+  outcomes, runs, messages, broadcasts, analytics, and `diagnose_delivery`, which says why a person
+  did or didn't get an automation's or broadcast's message.
+- **Privacy:** emails and phones are masked unless `TRIGGER_ENGAGE_MCP_REVEAL_CONTACT_DETAILS` is on.
+  Push tokens, secret-named fields and signed-link signatures are always redacted.
+- The Analytics numbers and the broadcast audience estimate moved into `Services\Analytics` and
+  `Services\BroadcastAudience`, which the dashboard and the MCP server share. Guide:
+  `docs/guides/mcp.md`. 30 feature tests (`McpServerTest`, `McpToolsTest`, `McpDiagnoseDeliveryTest`).
+
+## MCP drafting: agents draft, people publish
+
+- **11 drafting tools**, offered only when the caller may write (`TRIGGER_ENGAGE_MCP_WRITES`, or a host's
+  `trigger-engage.mcp.can-write`): create/update/duplicate templates, create/update segments, broadcast
+  drafts, journey drafts (create, update, discard) and `send_test` to the caller's own address. Write
+  tools are annotated as such, so clients ask before calling them. `get_workspace` shows the latest changes.
+- **Nothing reaches a person.** Templates a live journey sends (or people are still moving towards) and
+  segments a live journey or another segment depends on are refused. Agent segments fill without
+  `segment_entered` events (`SegmentManager::recompute(quiet: true)`). Broadcasts stay drafts. Test sends
+  log no message.
+- **Journey drafts** (`automations.draft_graph`) sit beside the live version. The editor opens them under an
+  "Unpublished draft" banner with Publish draft / Discard draft. Publishing clears the draft. The editor's step
+  rules, reader and graph builder moved into `Engine\JourneySteps`, shared with the tools.
+- Every write lands in `engage_audit_events`. 12 feature tests (`McpDraftingTest`).
+

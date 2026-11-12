@@ -22,6 +22,32 @@ return [
         ))))),
     ],
 
+    // The MCP server lets AI agents read this workspace (people, segments,
+    // journeys, runs, messages) and diagnose deliveries. It only reads.
+    // Standalone installs serve it at /mcp behind a server API key. Embedded
+    // hosts opt in, and may swap the middleware for their own auth followed by
+    // `trigger-engage.workspace`.
+    'mcp' => [
+        'enabled' => (bool) env('TRIGGER_ENGAGE_MCP_ENABLED', defined('TRIGGER_ENGAGE_STANDALONE')),
+        'path' => trim((string) env('TRIGGER_ENGAGE_MCP_PATH', defined('TRIGGER_ENGAGE_STANDALONE') ? 'mcp' : 'trigger-engage/mcp'), '/'),
+        'middleware' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'TRIGGER_ENGAGE_MCP_MIDDLEWARE',
+            'api,trigger-engage.mcp',
+        ))))),
+        'rate_limit' => (int) env('TRIGGER_ENGAGE_MCP_RATE_LIMIT', 120),
+        // Off by default: emails and phone numbers come back masked.
+        'reveal_contact_details' => (bool) env('TRIGGER_ENGAGE_MCP_REVEAL_CONTACT_DETAILS', false),
+        'disabled_tools' => env('TRIGGER_ENGAGE_MCP_DISABLED_TOOLS', ''),
+        // Drafting tools (templates, segments, broadcast and journey drafts,
+        // test sends). Off by default. Drafts reach nobody: a person sends or
+        // publishes them from the dashboard. Embedded hosts can grant writes
+        // per caller instead, with the `trigger-engage.mcp.can-write` request
+        // attribute.
+        'writes' => (bool) env('TRIGGER_ENGAGE_MCP_WRITES', false),
+        // Where send_test delivers for server-key callers. Unset = no test sends.
+        'test_recipient' => env('TRIGGER_ENGAGE_MCP_TEST_RECIPIENT'),
+    ],
+
     'assets_build_directory' => env('TRIGGER_ENGAGE_ASSET_DIRECTORY', $embedded ? 'vendor/trigger-engage/build' : 'build'),
 
     // A run is `running` only while a worker walks it. One still `running`

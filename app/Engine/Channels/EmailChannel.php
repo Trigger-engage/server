@@ -101,6 +101,37 @@ class EmailChannel
         return ['message' => $message->refresh(), 'warnings' => $warnings];
     }
 
+    /**
+     * Send a template, rendered for the given context, to one test address.
+     * It goes through the channel's own mailer, so it proves the provider too,
+     * but writes no message, needs no person and carries "[Test]" in the
+     * subject. The unsubscribe link points nowhere real.
+     *
+     * @return array{subject: string, warnings: array<int, string>}
+     */
+    public function sendTest(Channel $channel, Template $template, array $context, string $to): array
+    {
+        $this->renderer->reset();
+        $subject = '[Test] '.$this->renderer->render($template->subject ?? '', $context);
+        $content = $this->renderer->render($template->body, $context);
+        $preheader = $this->renderer->render($template->preheader ?? '', $context);
+        $warnings = $this->renderer->missingVariables();
+        $settings = $template->settings ?? [];
+
+        $this->mailer($channel)
+            ->to($to)
+            ->send(new TemplatedMail(
+                renderedSubject: $subject,
+                renderedBody: $this->layouts->render($template, $content, $preheader, url('/')),
+                fromAddress: $template->from_address,
+                fromName: $template->from_name,
+                replyToAddress: filled($settings['reply_to'] ?? null) ? (string) $settings['reply_to'] : null,
+                replyToName: filled($settings['reply_to_name'] ?? null) ? (string) $settings['reply_to_name'] : null,
+            ));
+
+        return ['subject' => $subject, 'warnings' => $warnings];
+    }
+
     protected function mailer(Channel $channel)
     {
         // "smtp" builds an on-the-fly mailer from the workspace's encrypted

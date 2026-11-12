@@ -88,6 +88,13 @@ export default function EditAutomation({ workspace, automation, templates, chann
 
             <form onSubmit={publish} className="mt-8 grid gap-6 lg:grid-cols-[1fr_300px]">
                 <section className={panelClass}>
+                    {automation.draft && <div role="status" className="mb-6 rounded-xl border border-amber-300/40 bg-amber-300/[0.07] p-5">
+                        <h2 className="font-semibold text-amber-100">Unpublished draft</h2>
+                        <p className="mt-2 text-sm leading-6 text-amber-100/90">
+                            These steps were saved by an AI agent{automation.draft.saved_by ? ` (${automation.draft.saved_by})` : ''} on {new Date(automation.draft.saved_at).toLocaleString()}. Nobody has received anything from them. Review them, then publish to make them live{automation.published_at ? ', or discard the draft to go back to the live journey' : ''}.
+                        </p>
+                        <button type="button" className={`${secondaryButtonClass} mt-4`} onClick={() => router.delete(engagePath(`automations/${automation.id}/draft`), { preserveScroll: true })}>Discard draft</button>
+                    </div>}
                     {lossy && <div role="alert" className="mb-6 rounded-xl border border-rose-400/40 bg-rose-400/[0.06] p-5">
                         <h2 className="font-semibold text-rose-200">This journey has steps this editor can't fully edit</h2>
                         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-rose-200/90">
@@ -137,7 +144,7 @@ export default function EditAutomation({ workspace, automation, templates, chann
                             {Object.entries(stepErrors).map(([index, messages]) => messages.map((message, position) => <p key={`${index}-${position}`} className="text-xs text-rose-300">{`Step ${Number(index) + 1}: ${message}`}</p>))}
                         </div>}
                         {lossy && !acknowledgeLossy && <p className="mt-2 text-xs leading-5 text-rose-200/90">Publishing is blocked until you acknowledge the rewrite in the banner above.</p>}
-                        <button className={`${buttonClass} mt-4 w-full`} disabled={form.processing || (lossy && !acknowledgeLossy)}>{form.processing ? 'Publishing…' : 'Publish new version'}</button>
+                        <button className={`${buttonClass} mt-4 w-full`} disabled={form.processing || (lossy && !acknowledgeLossy)}>{form.processing ? 'Publishing…' : automation.draft ? 'Publish draft' : 'Publish new version'}</button>
                         {automation.published_at && <p className="mt-3 text-center text-xs text-slate-500">Last published {new Date(automation.published_at).toLocaleString()}</p>}
                     </section>
                 </aside>
