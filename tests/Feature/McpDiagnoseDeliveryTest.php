@@ -63,7 +63,7 @@ class McpDiagnoseDeliveryTest extends TestCase
         $diagnosis = $this->tool($this->key, 'diagnose_delivery', ['external_id' => 'user-1', 'automation_id' => $automation->id]);
         $checks = $this->checks($diagnosis);
 
-        $this->assertStringStartsWith('Sent: Send email "Welcome"', $diagnosis['verdict']);
+        $this->assertMatchesRegularExpression('/^Sent \\(sent, [0-9T:+\\-]+\\): Send email "Welcome" via Test channel \\(array\\)\\.$/', $diagnosis['verdict']);
         $this->assertSame('pass', $checks['Automation is active']['result']);
         $this->assertSame('pass', $checks['Trigger event received']['result']);
         $this->assertSame('pass', $checks['Event started a run']['result']);
@@ -114,7 +114,7 @@ class McpDiagnoseDeliveryTest extends TestCase
 
         $this->assertStringContainsString('1 of 2 events started a run', $this->checks($diagnosis)['Event started a run']['detail']);
         $this->assertStringStartsWith('Re-entry is once_ever_per_person and they already went through it', $diagnosis['trigger_events'][0]['why_no_run']);
-        $this->assertStringStartsWith('Sent:', $diagnosis['verdict']);
+        $this->assertStringStartsWith('Sent (', $diagnosis['verdict']);
     }
 
     public function test_a_suppressed_person_is_skipped_and_told_why(): void

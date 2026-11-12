@@ -481,7 +481,9 @@ class DiagnoseDelivery extends Tool
         $latest = end($sent);
         $problem = collect($this->checks)->firstWhere('result', 'fail');
 
-        return 'Sent: '.$latest['what'].' is '.$latest['status'].($latest['at'] ? ' ('.$latest['at'].')' : '').'.'
+        // "Sent (delivered, <time>): <step>." The step summary is a full
+        // phrase of its own, so the status and time go before it.
+        return 'Sent ('.$latest['status'].($latest['at'] ? ', '.$latest['at'] : '').'): '.$latest['what'].'.'
             .(count($sent) > 1 ? ' '.count($sent).' messages in all from the latest run.' : '')
             .($problem ? ' But note: '.$problem['detail'] : '');
     }
