@@ -90,7 +90,7 @@ class Server
             $result = match ($method) {
                 'initialize' => $this->initialize($params),
                 'ping' => (object) [],
-                'tools/list' => ['tools' => array_map(fn (Tool $tool) => $this->describe($tool), $this->registry->tools())],
+                'tools/list' => ['tools' => array_map(fn (Tool $tool) => $this->describe($tool), $this->registry->available($context))],
                 'tools/call' => $this->callTool($params, $context),
                 default => throw JsonRpcError::methodNotFound($method),
             };
@@ -126,13 +126,7 @@ class Server
             'title' => $tool->title(),
             'description' => $tool->description(),
             'inputSchema' => $tool->inputSchema(),
-            'annotations' => [
-                'title' => $tool->title(),
-                'readOnlyHint' => true,
-                'destructiveHint' => false,
-                'idempotentHint' => true,
-                'openWorldHint' => false,
-            ],
+            'annotations' => ['title' => $tool->title(), ...$tool->annotations()],
         ];
     }
 
@@ -146,11 +140,11 @@ class Server
             throw JsonRpcError::invalidParams('tools/call needs a tool name.');
         }
 
-        $tool = $this->registry->find($name);
+        $tool = $this->registry->find($name, $context);
 
         if (! $tool) {
             throw JsonRpcError::invalidParams("Unknown tool: {$name}", [
-                'available' => array_map(fn (Tool $tool) => $tool->name(), $this->registry->tools()),
+                'available' => array_map(fn (Tool $tool) => $tool->name(), $this->registry->available($context)),
             ]);
         }
 

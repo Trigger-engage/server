@@ -16,6 +16,11 @@ class Automation extends Model
 
     protected $guarded = [];
 
+    protected $casts = [
+        'draft_graph' => 'array',
+        'draft_saved_at' => 'datetime',
+    ];
+
     public function workspace(): BelongsTo
     {
         return $this->belongsTo(Workspace::class);
@@ -45,6 +50,17 @@ class Automation extends Model
      * Publish a new immutable version of the graph and activate it.
      * In-flight runs keep executing the version they started on.
      */
+    public function hasDraft(): bool
+    {
+        return $this->draft_graph !== null;
+    }
+
+    /** The graph the editor should open: the unpublished draft if there is one. */
+    public function editorGraph(): array
+    {
+        return $this->draft_graph ?? $this->activeVersion?->graph ?? [];
+    }
+
     public function publish(array $graph): AutomationVersion
     {
         $version = $this->versions()->create([
@@ -52,9 +68,14 @@ class Automation extends Model
             'published_at' => now(),
         ]);
 
+        // Publishing makes whatever was edited the live journey, so an
+        // unpublished draft beside it no longer means anything.
         $this->update([
             'active_version_id' => $version->id,
             'status' => 'active',
+            'draft_graph' => null,
+            'draft_saved_at' => null,
+            'draft_saved_by' => null,
         ]);
 
         return $version;

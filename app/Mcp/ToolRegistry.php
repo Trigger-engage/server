@@ -8,6 +8,17 @@ use TriggerEngage\Server\Mcp\Tools\Automations\ListAutomations;
 use TriggerEngage\Server\Mcp\Tools\Broadcasts\GetBroadcast;
 use TriggerEngage\Server\Mcp\Tools\Broadcasts\ListBroadcasts;
 use TriggerEngage\Server\Mcp\Tools\Diagnostics\DiagnoseDelivery;
+use TriggerEngage\Server\Mcp\Tools\Drafts\CreateAutomationDraft;
+use TriggerEngage\Server\Mcp\Tools\Drafts\CreateBroadcastDraft;
+use TriggerEngage\Server\Mcp\Tools\Drafts\CreateSegment;
+use TriggerEngage\Server\Mcp\Tools\Drafts\CreateTemplate;
+use TriggerEngage\Server\Mcp\Tools\Drafts\DiscardAutomationDraft;
+use TriggerEngage\Server\Mcp\Tools\Drafts\DuplicateTemplate;
+use TriggerEngage\Server\Mcp\Tools\Drafts\SendTest;
+use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateAutomationDraft;
+use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateBroadcastDraft;
+use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateSegment;
+use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateTemplate;
 use TriggerEngage\Server\Mcp\Tools\Messages\GetMessage;
 use TriggerEngage\Server\Mcp\Tools\Messages\SearchMessages;
 use TriggerEngage\Server\Mcp\Tools\People\GetPerson;
@@ -57,6 +68,19 @@ class ToolRegistry
         GetBroadcast::class,
         GetAnalytics::class,
         DiagnoseDelivery::class,
+        // Drafting: offered only when the caller may write. Nothing here
+        // reaches a person; someone publishes or sends from the dashboard.
+        CreateTemplate::class,
+        UpdateTemplate::class,
+        DuplicateTemplate::class,
+        CreateSegment::class,
+        UpdateSegment::class,
+        CreateBroadcastDraft::class,
+        UpdateBroadcastDraft::class,
+        CreateAutomationDraft::class,
+        UpdateAutomationDraft::class,
+        DiscardAutomationDraft::class,
+        SendTest::class,
     ];
 
     /** @var array<int, Tool>|null */
@@ -79,9 +103,20 @@ class ToolRegistry
         ));
     }
 
-    public function find(string $name): ?Tool
+    /**
+     * The tools this caller may see and call: every reading tool, and the
+     * writing ones only when the Context allows writes.
+     *
+     * @return array<int, Tool>
+     */
+    public function available(Context $context): array
     {
-        foreach ($this->tools() as $tool) {
+        return array_values(array_filter($this->tools(), fn (Tool $tool) => $context->canWrite || ! $tool->writes()));
+    }
+
+    public function find(string $name, ?Context $context = null): ?Tool
+    {
+        foreach ($context ? $this->available($context) : $this->tools() as $tool) {
             if ($tool->name() === $name) {
                 return $tool;
             }

@@ -5,6 +5,7 @@ namespace TriggerEngage\Server\Mcp\Tools\Workspace;
 use TriggerEngage\Server\Mcp\Context;
 use TriggerEngage\Server\Mcp\Server;
 use TriggerEngage\Server\Mcp\Tool;
+use TriggerEngage\Server\Models\AuditEvent;
 use TriggerEngage\Server\Models\AutomationRun;
 use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\EventOccurrence;
@@ -27,8 +28,8 @@ class GetWorkspace extends Tool
         return 'Start here. The workspace this key belongs to: its timezone, how many people, events, segments, templates, '
             .'automations and broadcasts it has (by status), which delivery channels are set up and which is the default per '
             .'type, and engine health (active runs, delays that should have woken already, stalled runs, when the last event '
-            .'and message happened). Overdue delays or stalled runs usually mean the scheduler (engage:tick) or the queue '
-            .'worker is not running.';
+            .'and message happened), the last changes made through MCP, and whether your credentials may draft. Overdue '
+            .'delays or stalled runs usually mean the scheduler (engage:tick) or the queue worker is not running.';
     }
 
     public function handle(array $arguments, Context $context): array
@@ -63,9 +64,15 @@ class GetWorkspace extends Tool
                 'last_event_at' => $context->time(EventOccurrence::query()->where('workspace_id', $workspace->id)->max('occurred_at')),
                 'last_message_at' => $context->time(Message::query()->where('workspace_id', $workspace->id)->max('created_at')),
             ],
+            'recent_agent_changes' => AuditEvent::query()->where('workspace_id', $workspace->id)->latest('id')->limit(10)->get()
+                ->map(fn (AuditEvent $event) => [
+                    'at' => $context->time($event->created_at),
+                    'by' => $event->actor,
+                    'what' => $event->summary,
+                ])->values()->all(),
             'mcp' => [
                 'server_version' => Server::version(),
-                'read_only' => true,
+                'can_write' => $context->canWrite,
                 'contact_details' => $context->redactor->revealsContacts() ? 'shown' : 'masked',
             ],
         ];

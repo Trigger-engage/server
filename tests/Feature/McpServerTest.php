@@ -24,7 +24,7 @@ class McpServerTest extends TestCase
         $this->assertSame('2025-03-26', $result['protocolVersion']);
         $this->assertSame('trigger-engage', $result['serverInfo']['name']);
         $this->assertSame(['tools' => ['listChanged' => false]], $result['capabilities']);
-        $this->assertStringContainsString('read-only', $result['instructions']);
+        $this->assertStringContainsString('Reading tools change nothing', $result['instructions']);
 
         $this->mcp($key, 'initialize', ['protocolVersion' => '1999-01-01'])->assertJsonPath('result.protocolVersion', '2025-06-18');
         $this->mcp($key, 'ping')->assertOk()->assertExactJson(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]);
@@ -37,7 +37,9 @@ class McpServerTest extends TestCase
         $response = $this->mcp($key, 'tools/list')->assertOk();
         $tools = $response->json('result.tools');
 
-        $this->assertCount(count(ToolRegistry::TOOLS), $tools);
+        // A server key reads only, so the drafting tools are not offered.
+        $readOnly = array_filter(ToolRegistry::TOOLS, fn (string $class) => ! app($class)->writes());
+        $this->assertCount(count($readOnly), $tools);
         $this->assertSame(count($tools), count(array_unique(array_column($tools, 'name'))), 'Tool names are unique.');
 
         foreach ($tools as $tool) {

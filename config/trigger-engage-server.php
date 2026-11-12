@@ -38,6 +38,14 @@ return [
         // Off by default: emails and phone numbers come back masked.
         'reveal_contact_details' => (bool) env('TRIGGER_ENGAGE_MCP_REVEAL_CONTACT_DETAILS', false),
         'disabled_tools' => env('TRIGGER_ENGAGE_MCP_DISABLED_TOOLS', ''),
+        // Drafting tools (templates, segments, broadcast and journey drafts,
+        // test sends). Off by default. Drafts reach nobody: a person sends or
+        // publishes them from the dashboard. Embedded hosts can grant writes
+        // per caller instead, with the `trigger-engage.mcp.can-write` request
+        // attribute.
+        'writes' => (bool) env('TRIGGER_ENGAGE_MCP_WRITES', false),
+        // Where send_test delivers for server-key callers. Unset = no test sends.
+        'test_recipient' => env('TRIGGER_ENGAGE_MCP_TEST_RECIPIENT'),
     ],
 
     'assets_build_directory' => env('TRIGGER_ENGAGE_ASSET_DIRECTORY', $embedded ? 'vendor/trigger-engage/build' : 'build'),

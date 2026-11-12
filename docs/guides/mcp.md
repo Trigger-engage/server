@@ -5,8 +5,10 @@ an AI agent (Claude Code, Claude Desktop, Cursor or any other MCP client) can re
 people, events, segments, templates, journeys, runs, messages and broadcasts. It can also answer
 the support question that eats the most time: *why didn't this person get that message?*
 
-This release only reads. No tool can change data, send a message or fire an event, and every tool
-says so (`readOnlyHint`) when the client lists it.
+By default it only reads. If the operator switches drafting on, an agent can also write templates,
+segments, broadcast drafts and journey drafts, and send tests to its own inbox. Nothing an agent makes
+reaches a person: someone publishes the journey or sends the broadcast from the dashboard. See
+[Drafting](#drafting).
 
 ## Where it lives
 
@@ -85,6 +87,33 @@ the engine passes through, in the same order:
 It returns a one-line verdict and every check, each marked `pass`, `fail`, `warn` or `info`. A
 delay that should already have woken shows up as a warning that points at the scheduler.
 
+## Drafting
+
+Drafting tools appear only for callers allowed to write: `TRIGGER_ENGAGE_MCP_WRITES=true` for server
+keys, or an embedded host's own rule (below). Clients see them marked as not read-only, so Claude Code
+and Claude Desktop ask before each call.
+
+| Tool | What it does | What stops it reaching people |
+|---|---|---|
+| `create_template` | A new email, SMS or push template, checked like the template editor checks it | A template sends nothing until a journey or broadcast uses it |
+| `update_template` | Changes a template, naming only the fields that change | **Refused** if an active journey sends it, or people are still moving through a journey that will: templates have no draft state |
+| `duplicate_template` | Copies a template under a new name | The way to change a live template: edit the copy, point a journey draft at it |
+| `create_segment` | A rule or manual segment, filled straight away | Filled **without** `segment_entered` events, so no journey starts |
+| `update_segment` | Renames a segment or replaces its rules (filled quietly again) | New rules are **refused** for a segment a live journey uses, or that other segments' rules include |
+| `create_broadcast_draft` / `update_broadcast_draft` | A campaign to a segment, content copied from a template, with its audience estimate | Stays a draft; only drafts can be edited; a person presses Send |
+| `create_automation_draft` / `update_automation_draft` / `discard_automation_draft` | A journey as the editor's own step list, built and checked by the editor's own builder | Saved beside the live version, which keeps running; a person publishes it from the editor |
+| `send_test` | Emails a template or broadcast draft, filled in for a real person or the sample, with "[Test]" in the subject | Only to the caller's own address, which the host sets; no message is logged |
+
+**Journey drafts in the editor.** A journey with a draft opens on the draft's steps under an
+"Unpublished draft" banner that says who saved it. **Publish draft** makes it live as a new version
+(people mid-journey stay on theirs); **Discard draft** goes back to the live steps. The name, trigger
+event and re-entry policy of a published journey can't be changed through MCP, because those apply at
+once.
+
+**Audit trail.** Every write is recorded in `engage_audit_events` with the caller (`api-key:<name>` or
+the host's `actor`), what changed and a sentence a person can read. `get_workspace` shows the latest
+ten.
+
 ## Privacy
 
 - **Contact details are masked.** Emails come back as `a***@e***.com` and phone numbers as
@@ -108,6 +137,8 @@ delay that should already have woken shows up as a warning that points at the sc
 | `TRIGGER_ENGAGE_MCP_RATE_LIMIT` | `120` | Requests per minute |
 | `TRIGGER_ENGAGE_MCP_REVEAL_CONTACT_DETAILS` | `false` | Show emails and phone numbers unmasked |
 | `TRIGGER_ENGAGE_MCP_DISABLED_TOOLS` | empty | Comma-separated tool names to switch off |
+| `TRIGGER_ENGAGE_MCP_WRITES` | `false` | Offer the drafting tools to server-key callers |
+| `TRIGGER_ENGAGE_MCP_TEST_RECIPIENT` | empty | The only address `send_test` delivers to for server-key callers; empty = no test sends |
 
 ### Embedded hosts with their own auth
 
@@ -119,6 +150,11 @@ with the host's own login can swap it out. Put the host's auth middleware first,
 TRIGGER_ENGAGE_MCP_MIDDLEWARE=api,auth:api-admin,can:viewTriggerEngage,trigger-engage.workspace
 ```
 
+Such a host decides who may draft by setting request attributes in its own middleware:
+`trigger-engage.mcp.can-write` (true/false), `trigger-engage.mcp.test-recipient` (the signed-in
+person's own address) and `trigger-engage.mcp.actor` (a name for the audit trail, e.g. `admin:12`). Hosts
+that wrap the tools in their own MCP server pass the same three things to `Context`.
+
 ## Things to ask an agent
 
 - "Why didn't user-123 get the welcome email yesterday?"
@@ -126,3 +162,6 @@ TRIGGER_ENGAGE_MCP_MIDDLEWARE=api,auth:api-admin,can:viewTriggerEngage,trigger-e
 - "How many people would this broadcast actually reach, and who gets skipped?"
 - "Write segment rules for students who booked at least twice in 30 days, and check how many match."
 - "Show me what the payment recovery email looks like for user-77."
+- With drafting on: "Draft a broadcast to everyone who booked twice but not in the last 60 days, test it
+  on me, and tell me who would be skipped."
+- "Add a two-hour wait before the payment recovery email, as a draft I can review."
