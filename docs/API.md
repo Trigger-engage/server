@@ -264,6 +264,12 @@ Standard HTTP status codes with a JSON body:
 | `422` | Validation error (Laravel `{ "message", "errors": { ... } }`) |
 | `429` | Rate limit exceeded |
 
+## MCP server
+
+AI agents read a workspace through the MCP server at `POST /mcp` (embedded: `/trigger-engage/mcp`,
+off until enabled), authenticated with a server key as `Authorization: Bearer te_…`. It only
+reads. See the [MCP guide](guides/mcp.md).
+
 ## Analytics is a dashboard, not an API
 
 Metrics live on the **Analytics** page of the dashboard (`/app/analytics`), not in this
