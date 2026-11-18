@@ -21,6 +21,7 @@ Start with the [origin story](marketing/why.md), then [Concepts](CONCEPTS.md).
 | [A/B testing](guides/ab-testing.md) | Weighted, deterministic message splits and reading results |
 | [Anonymous → identified](guides/anonymous-identity.md) | Track before signup, then merge the history |
 | [Analytics](guides/analytics.md) | The time-series metrics dashboard |
+| [MCP server for AI agents](guides/mcp.md) | Let Claude and other agents read your workspace and diagnose deliveries |
 
 ## Reference
 

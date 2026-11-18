@@ -529,3 +529,18 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   standalone dashboard won't revoke its last server key, which it signs in with.
 - The browser and React Native SDK is a separate package, `@trigger-engage/js` (`js-sdk/` in the
   monorepo). API reference in `docs/API.md`. 10 feature tests (`ClientApiTest`).
+
+## MCP server for AI agents (read-only)
+
+- **`POST /mcp`** (embedded: `/trigger-engage/mcp`, opt-in with `TRIGGER_ENGAGE_MCP_ENABLED`) is a
+  stateless Streamable-HTTP MCP server, authenticated with a server key as a Bearer token or the
+  API's Basic pair. Client keys and revoked keys are refused. It has 23 read-only tools covering the
+  workspace, events, attributes, channels, topics, people, segments (with live rule previews),
+  templates (rendered for a real person), automations as plain-language steps with per-step
+  outcomes, runs, messages, broadcasts, analytics, and `diagnose_delivery`, which says why a person
+  did or didn't get an automation's or broadcast's message.
+- **Privacy:** emails and phones are masked unless `TRIGGER_ENGAGE_MCP_REVEAL_CONTACT_DETAILS` is on.
+  Push tokens, secret-named fields and signed-link signatures are always redacted.
+- The Analytics numbers and the broadcast audience estimate moved into `Services\Analytics` and
+  `Services\BroadcastAudience`, which the dashboard and the MCP server share. Guide:
+  `docs/guides/mcp.md`. 30 feature tests (`McpServerTest`, `McpToolsTest`, `McpDiagnoseDeliveryTest`).
