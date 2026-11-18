@@ -122,8 +122,13 @@ class SegmentManager
     /**
      * Fully recompute a rule segment's membership. Only rows this manager owns
      * (source=rule) are touched, so manual/event overlaps are left alone.
+     *
+     * Quiet records no segment_entered / segment_left events. Use it when a
+     * change of rules is not something people did (a draft an agent wrote):
+     * the next recompute finds membership already right and records nothing
+     * either, so no journey starts because someone edited a rule.
      */
-    public function recompute(Segment $segment): int
+    public function recompute(Segment $segment, bool $quiet = false): int
     {
         if (! $segment->isRuleBased()) {
             return 0;
@@ -174,8 +179,10 @@ class SegmentManager
             ->where('segment_id', $segment->id)
             ->pluck('person_id');
 
-        $this->recordMembershipChange($segment, $after->diff($before)->values()->all(), entered: true);
-        $this->recordMembershipChange($segment, $before->diff($after)->values()->all(), entered: false);
+        if (! $quiet) {
+            $this->recordMembershipChange($segment, $after->diff($before)->values()->all(), entered: true);
+            $this->recordMembershipChange($segment, $before->diff($after)->values()->all(), entered: false);
+        }
 
         return $matchingIds->count();
     }

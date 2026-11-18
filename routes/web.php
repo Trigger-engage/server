@@ -52,6 +52,7 @@ Route::post('/automations', [AutomationController::class, 'store'])->name('autom
 Route::get('/automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');
 Route::put('/automations/{automation}/publish', [AutomationController::class, 'publish'])->name('automations.publish');
 Route::post('/automations/{automation}/pause', [AutomationController::class, 'pause'])->name('automations.pause');
+Route::delete('/automations/{automation}/draft', [AutomationController::class, 'discardDraft'])->name('automations.draft.destroy');
 Route::get('/runs', [RunController::class, 'index'])->name('runs.index');
 Route::get('/runs/{run}', [RunController::class, 'show'])->name('runs.show');
 Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');

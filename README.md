@@ -193,7 +193,9 @@ claude mcp add --transport http trigger-engage https://engage.example.com/mcp \
 ```
 
 Contact details come back masked, and tokens and signed links are always redacted. Embedded hosts
-switch it on with `TRIGGER_ENGAGE_MCP_ENABLED=true`. See the [MCP guide](docs/guides/mcp.md).
+switch it on with `TRIGGER_ENGAGE_MCP_ENABLED=true`. With `TRIGGER_ENGAGE_MCP_WRITES=true` agents can
+also draft templates, segments, broadcasts and journeys; a person still sends or publishes them. See the
+[MCP guide](docs/guides/mcp.md).
 
 ## Engine guarantees
 

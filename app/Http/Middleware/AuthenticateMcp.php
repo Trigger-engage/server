@@ -35,6 +35,9 @@ class AuthenticateMcp
 
         $request->attributes->set('workspace', $key->workspace);
         $request->attributes->set('trigger-engage.mcp.actor', 'api-key:'.$key->name);
+        // Server keys draft only where the operator switched drafting on.
+        $request->attributes->set('trigger-engage.mcp.can-write', (bool) config('trigger-engage-server.mcp.writes', false));
+        $request->attributes->set('trigger-engage.mcp.test-recipient', config('trigger-engage-server.mcp.test_recipient'));
 
         return $next($request);
     }

@@ -67,6 +67,11 @@ class Workspace extends Model
         return $this->hasMany(Message::class);
     }
 
+    public function auditEvents(): HasMany
+    {
+        return $this->hasMany(AuditEvent::class);
+    }
+
     public function subscriptionTopics(): HasMany
     {
         return $this->hasMany(SubscriptionTopic::class);

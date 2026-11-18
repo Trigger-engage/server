@@ -95,7 +95,7 @@ class McpToolsTest extends TestCase
         $this->assertSame(0, $data['engine']['overdue_delays']);
         $this->assertStringEndsWith('+01:00', $data['engine']['last_message_at'], 'Times are in the workspace timezone.');
         $this->assertSame('masked', $data['mcp']['contact_details']);
-        $this->assertTrue($data['mcp']['read_only']);
+        $this->assertFalse($data['mcp']['can_write'], 'Server keys only read unless drafting is switched on.');
     }
 
     public function test_events_and_attributes_give_real_field_names(): void

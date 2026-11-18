@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use TriggerEngage\Server\Models\Person;
 
 /**
- * One MCP tool. Every tool in this release only reads: it may query the
- * workspace in its Context, never write to it, and the server marks each
- * one read-only in tools/list.
+ * One MCP tool. Most only read the workspace in their Context. A tool that
+ * writes says so with writes(); the server then lists it only to callers the
+ * host lets write, and its annotations tell clients to ask before calling it.
+ * Writing tools make drafts: nothing they do reaches a person.
  */
 abstract class Tool
 {
@@ -61,6 +62,28 @@ abstract class Tool
      * @return array<string, mixed>
      */
     abstract public function handle(array $arguments, Context $context): array;
+
+    /** Whether this tool changes anything. Read-only unless a tool says otherwise. */
+    public function writes(): bool
+    {
+        return false;
+    }
+
+    /**
+     * MCP tool annotations. A writing tool is not read-only; one that
+     * overwrites existing content is destructive; a create is not idempotent.
+     *
+     * @return array<string, bool>
+     */
+    public function annotations(): array
+    {
+        return [
+            'readOnlyHint' => ! $this->writes(),
+            'destructiveHint' => false,
+            'idempotentHint' => ! $this->writes(),
+            'openWorldHint' => false,
+        ];
+    }
 
     /** @return array<string, mixed> */
     public function inputSchema(): array

@@ -15,10 +15,18 @@ use TriggerEngage\Server\Models\Workspace;
  */
 class Context
 {
+    /**
+     * @param  bool  $canWrite  Whether drafting tools are offered. Off unless the
+     *                          host grants it (a config switch, or a token scope).
+     * @param  string|null  $testRecipient  The one address send_test may send to:
+     *                                      the caller's own, never one the agent picks.
+     */
     public function __construct(
         public readonly Workspace $workspace,
         public readonly Redactor $redactor,
         public readonly string $actor = 'mcp',
+        public readonly bool $canWrite = false,
+        public readonly ?string $testRecipient = null,
     ) {}
 
     /**

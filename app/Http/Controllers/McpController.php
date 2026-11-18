@@ -31,6 +31,8 @@ class McpController extends Controller
             workspace: $workspace,
             redactor: new Redactor((bool) config('trigger-engage-server.mcp.reveal_contact_details', false)),
             actor: $actor,
+            canWrite: (bool) $request->attributes->get('trigger-engage.mcp.can-write', false),
+            testRecipient: $request->attributes->get('trigger-engage.mcp.test-recipient'),
         ));
     }
 

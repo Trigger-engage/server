@@ -4,6 +4,8 @@ namespace TriggerEngage\Server\Mcp\Support;
 
 use Illuminate\Support\Collection;
 use TriggerEngage\Server\Models\Automation;
+use TriggerEngage\Server\Models\AutomationRun;
+use TriggerEngage\Server\Models\AutomationVersion;
 use TriggerEngage\Server\Models\Workspace;
 
 /**
@@ -16,7 +18,10 @@ class AutomationIndex
     /** @var Collection<int, Automation> */
     protected Collection $automations;
 
-    public function __construct(Workspace $workspace)
+    /** @var Collection<int, AutomationVersion>|null */
+    protected ?Collection $inFlightVersions = null;
+
+    public function __construct(protected Workspace $workspace)
     {
         $this->automations = Automation::query()
             ->where('workspace_id', $workspace->id)
@@ -28,8 +33,72 @@ class AutomationIndex
     /** @return array<int, array{id: int, name: string, status: string}> */
     public function usingTemplate(int $templateId): array
     {
-        return $this->matching(fn (array $node) => in_array($node['type'] ?? null, ['send_email', 'send_sms', 'send_push'], true)
-            && (int) ($node['config']['template_id'] ?? 0) === $templateId);
+        return $this->matching($this->templateTest($templateId));
+    }
+
+    /**
+     * Journeys whose next sends would change if this template changed: active
+     * ones whose live version sends it, and any version people are still
+     * moving through (a paused journey's runs carry on).
+     *
+     * @return array<int, array{id: int, name: string, status: string}>
+     */
+    public function liveUsingTemplate(int $templateId): array
+    {
+        return $this->live($this->templateTest($templateId));
+    }
+
+    /**
+     * Journeys that check this segment or start on people entering or
+     * leaving it, live or still carrying people.
+     *
+     * @return array<int, array{id: int, name: string, status: string}>
+     */
+    public function liveUsingSegment(int $segmentId): array
+    {
+        return $this->live($this->segmentTest($segmentId));
+    }
+
+    protected function templateTest(int $templateId): callable
+    {
+        return function (array $node) use ($templateId): bool {
+            if (in_array($node['type'] ?? null, ['send_email', 'send_sms', 'send_push'], true)) {
+                return (int) ($node['config']['template_id'] ?? 0) === $templateId;
+            }
+
+            // A/B variants carry their own template ids.
+            return collect($node['config']['variants'] ?? [])->contains(fn ($variant) => is_array($variant) && (int) ($variant['template_id'] ?? 0) === $templateId);
+        };
+    }
+
+    /** @return array<int, array{id: int, name: string, status: string}> */
+    protected function live(callable $test): array
+    {
+        $hits = $this->automations
+            ->filter(fn (Automation $automation) => $automation->status === 'active' && $this->graphHas($automation->activeVersion?->graph ?? [], $test))
+            ->keyBy('id');
+
+        $this->inFlightVersions ??= AutomationVersion::query()
+            ->whereIn('id', AutomationRun::query()
+                ->where('workspace_id', $this->workspace->id)
+                ->whereIn('status', AutomationRun::activeStatuses())
+                ->distinct()
+                ->select('automation_version_id'))
+            ->get(['id', 'automation_id', 'graph']);
+
+        foreach ($this->inFlightVersions as $version) {
+            $automation = $this->automations->firstWhere('id', $version->automation_id);
+            if ($automation && ! $hits->has($automation->id) && $this->graphHas($version->graph ?? [], $test)) {
+                $hits->put($automation->id, $automation);
+            }
+        }
+
+        return $hits->map(fn (Automation $automation) => $this->summary($automation))->values()->all();
+    }
+
+    protected function graphHas(array $graph, callable $test): bool
+    {
+        return collect($graph['nodes'] ?? [])->contains(fn ($node) => is_array($node) && $test($node));
     }
 
     /** @return array<int, array{id: int, name: string, status: string}> */
@@ -46,7 +115,12 @@ class AutomationIndex
      */
     public function usingSegment(int $segmentId): array
     {
-        return $this->matching(function (array $node) use ($segmentId): bool {
+        return $this->matching($this->segmentTest($segmentId));
+    }
+
+    protected function segmentTest(int $segmentId): callable
+    {
+        return function (array $node) use ($segmentId): bool {
             if (($node['type'] ?? null) === 'segment') {
                 return (int) ($node['config']['segment_id'] ?? 0) === $segmentId;
             }
@@ -58,7 +132,7 @@ class AutomationIndex
             }
 
             return false;
-        });
+        };
     }
 
     /**

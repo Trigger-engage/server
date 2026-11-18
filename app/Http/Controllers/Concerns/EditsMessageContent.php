@@ -167,6 +167,38 @@ trait EditsMessageContent
         ];
     }
 
+    /**
+     * Copy a template's message content into the fields the broadcast owns, so
+     * the campaign starts as an editable snapshot rather than a live reference.
+     *
+     * @return array<string, mixed>
+     */
+    protected function snapshotFrom(Template $template): array
+    {
+        $content = $this->normalizedContent([
+            'channel' => $template->channel,
+            'name' => $template->name,
+            'subject' => $template->subject,
+            'body' => $template->body,
+            'layout' => $template->layout,
+            'preheader' => $template->preheader,
+            'from_name' => $template->from_name,
+            'from_address' => $template->from_address,
+            'settings' => $template->settings,
+        ], $template->workspace);
+
+        return [
+            'subject' => $content['subject'] ?? null,
+            'body' => $content['body'] ?? '',
+            'layout' => $content['layout'] ?? null,
+            'preheader' => $content['preheader'] ?? null,
+            'settings' => $content['settings'] ?? null,
+            'from_name' => $content['from_name'] ?? null,
+            'from_address' => $content['from_address'] ?? null,
+            'subscription_topic_id' => $template->subscription_topic_id,
+        ];
+    }
+
     /** @return array{html: string, subject: string, warnings: array<int, string>} */
     protected function renderPreview(Template $template): array
     {
