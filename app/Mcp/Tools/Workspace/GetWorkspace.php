@@ -73,6 +73,7 @@ class GetWorkspace extends Tool
             'mcp' => [
                 'server_version' => Server::version(),
                 'can_write' => $context->canWrite,
+                'can_act' => $context->canAct,
                 'contact_details' => $context->redactor->revealsContacts() ? 'shown' : 'masked',
             ],
         ];

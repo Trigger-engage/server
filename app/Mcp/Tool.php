@@ -70,6 +70,15 @@ abstract class Tool
     }
 
     /**
+     * Whether this tool acts on people: publishes a journey, sends a
+     * broadcast. Live tools need their own permission and a confirmation.
+     */
+    public function live(): bool
+    {
+        return false;
+    }
+
+    /**
      * MCP tool annotations. A writing tool is not read-only; one that
      * overwrites existing content is destructive; a create is not idempotent.
      *
@@ -79,7 +88,7 @@ abstract class Tool
     {
         return [
             'readOnlyHint' => ! $this->writes(),
-            'destructiveHint' => false,
+            'destructiveHint' => $this->live(),
             'idempotentHint' => ! $this->writes(),
             'openWorldHint' => false,
         ];

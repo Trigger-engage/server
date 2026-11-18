@@ -19,6 +19,10 @@ use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateAutomationDraft;
 use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateBroadcastDraft;
 use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateSegment;
 use TriggerEngage\Server\Mcp\Tools\Drafts\UpdateTemplate;
+use TriggerEngage\Server\Mcp\Tools\Live\PauseAutomation;
+use TriggerEngage\Server\Mcp\Tools\Live\PublishAutomation;
+use TriggerEngage\Server\Mcp\Tools\Live\RetryBroadcastFailures;
+use TriggerEngage\Server\Mcp\Tools\Live\SendBroadcast;
 use TriggerEngage\Server\Mcp\Tools\Messages\GetMessage;
 use TriggerEngage\Server\Mcp\Tools\Messages\SearchMessages;
 use TriggerEngage\Server\Mcp\Tools\People\GetPerson;
@@ -81,6 +85,12 @@ class ToolRegistry
         UpdateAutomationDraft::class,
         DiscardAutomationDraft::class,
         SendTest::class,
+        // Live: offered only when the caller may act. Each previews first
+        // and needs a second call with the confirmation it returned.
+        PublishAutomation::class,
+        PauseAutomation::class,
+        SendBroadcast::class,
+        RetryBroadcastFailures::class,
     ];
 
     /** @var array<int, Tool>|null */
@@ -104,14 +114,19 @@ class ToolRegistry
     }
 
     /**
-     * The tools this caller may see and call: every reading tool, and the
-     * writing ones only when the Context allows writes.
+     * The tools this caller may see and call: every reading tool, the
+     * drafting ones when the Context allows writes, and the live ones only
+     * when it allows acting.
      *
      * @return array<int, Tool>
      */
     public function available(Context $context): array
     {
-        return array_values(array_filter($this->tools(), fn (Tool $tool) => $context->canWrite || ! $tool->writes()));
+        return array_values(array_filter($this->tools(), fn (Tool $tool) => match (true) {
+            $tool->live() => $context->canAct,
+            $tool->writes() => $context->canWrite,
+            default => true,
+        }));
     }
 
     public function find(string $name, ?Context $context = null): ?Tool

@@ -33,6 +33,7 @@ class McpController extends Controller
             actor: $actor,
             canWrite: (bool) $request->attributes->get('trigger-engage.mcp.can-write', false),
             testRecipient: $request->attributes->get('trigger-engage.mcp.test-recipient'),
+            canAct: (bool) $request->attributes->get('trigger-engage.mcp.can-act', false),
         ));
     }
 

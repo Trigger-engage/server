@@ -20,6 +20,8 @@ class Context
      *                          host grants it (a config switch, or a token scope).
      * @param  string|null  $testRecipient  The one address send_test may send to:
      *                                      the caller's own, never one the agent picks.
+     * @param  bool  $canAct  Whether live tools are offered: publishing and pausing
+     *                        journeys, sending broadcasts. Off unless the host grants it.
      */
     public function __construct(
         public readonly Workspace $workspace,
@@ -27,6 +29,7 @@ class Context
         public readonly string $actor = 'mcp',
         public readonly bool $canWrite = false,
         public readonly ?string $testRecipient = null,
+        public readonly bool $canAct = false,
     ) {}
 
     /**

@@ -4,7 +4,6 @@ namespace TriggerEngage\Server\Http\Controllers\Web;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -13,7 +12,6 @@ use TriggerEngage\Server\Engine\EmailLayoutRenderer;
 use TriggerEngage\Server\Engine\TemplateRenderer;
 use TriggerEngage\Server\Http\Controllers\Concerns\EditsMessageContent;
 use TriggerEngage\Server\Http\Controllers\Controller;
-use TriggerEngage\Server\Jobs\SendBroadcastRecipient;
 use TriggerEngage\Server\Models\Broadcast;
 use TriggerEngage\Server\Models\BroadcastRecipient;
 use TriggerEngage\Server\Models\Channel;
@@ -208,43 +206,12 @@ class BroadcastController extends Controller
      * again. The send job is already idempotent for re-dispatch: it reuses the
      * recipient's existing message row and ignores non-queued statuses.
      */
-    public function retryFailed(Request $request, Broadcast $broadcast): RedirectResponse
+    public function retryFailed(Request $request, Broadcast $broadcast, BroadcastSender $sender): RedirectResponse
     {
         $workspace = $request->attributes->get('workspace');
         abort_unless($broadcast->workspace_id === $workspace->id, 404);
 
-        $recipientIds = DB::transaction(function () use ($broadcast): array {
-            $locked = Broadcast::query()->lockForUpdate()->findOrFail($broadcast->id);
-            if ($locked->status !== 'completed') {
-                throw ValidationException::withMessages(['broadcast' => 'Wait for the current send to finish before retrying.']);
-            }
-
-            $ids = $locked->recipients()->where('status', 'failed')->pluck('id');
-            if ($ids->isEmpty()) {
-                throw ValidationException::withMessages(['broadcast' => 'There are no failed recipients to retry.']);
-            }
-
-            $locked->recipients()->whereKey($ids)->update(['status' => 'queued', 'error' => null]);
-            $locked->update(['status' => 'sending', 'completed_at' => null]);
-
-            return $ids->all();
-        });
-
-        // On the sync queue a job that throws rethrows into THIS loop after its
-        // failed() handler has already marked the recipient failed — so swallow
-        // and keep going, or one bad recipient strands every recipient after it
-        // as 'queued' forever with the broadcast wedged in 'sending' (retry and
-        // send both refuse non-completed/non-draft states, so there would be no
-        // way out from the UI).
-        foreach ($recipientIds as $id) {
-            try {
-                SendBroadcastRecipient::dispatch($id);
-            } catch (\Throwable $exception) {
-                report($exception);
-            }
-        }
-
-        $count = count($recipientIds);
+        $count = $sender->retryFailed($broadcast);
 
         return back()->with('success', "Retrying {$count} failed ".str('recipient')->plural($count).'.');
     }
