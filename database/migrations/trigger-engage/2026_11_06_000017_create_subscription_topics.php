@@ -35,7 +35,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['person_id', 'subscription_topic_id'], 'engage_subscription_preferences_person_topic_unique');
-            $table->index(['subscription_topic_id', 'subscribed']);
+            // Named by hand: the generated name is 70 characters, and MySQL
+            // refuses identifiers over 64 (SQLite, where the tests run, doesn't).
+            $table->index(['subscription_topic_id', 'subscribed'], 'engage_subscription_prefs_topic_subscribed_index');
         });
 
         foreach (['templates', 'broadcasts', 'messages'] as $tableName) {
