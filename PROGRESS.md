@@ -560,3 +560,18 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   rules, reader and graph builder moved into `Engine\JourneySteps`, shared with the tools.
 - Every write lands in `engage_audit_events`. 12 feature tests (`McpDraftingTest`).
 
+## MCP live actions: preview, then confirm
+
+- **4 live tools**, offered only when the caller may act (`TRIGGER_ENGAGE_MCP_LIVE` or a host's
+  `trigger-engage.mcp.can-act`): `publish_automation` (publishes a draft, or resumes a paused journey),
+  `pause_automation`, `send_broadcast` and `retry_broadcast_failures`. Annotated destructive.
+- **Two calls each.** The first changes nothing and returns a preview plus a confirmation
+  (`Mcp\Support\Confirmation`: HMAC over caller, action, record and a fingerprint of the previewed state, 10 minutes).
+  It dies on expiry, another caller, another record, any change to what was previewed, and after use.
+  Nothing is stored.
+- Publishing rebuilds the draft through `JourneySteps` first, so a deleted template stops it. A broadcast
+  nobody could receive is refused.
+- Retry moved from `BroadcastController` into `BroadcastSender::retryFailed()`. Both send paths can
+  dispatch after the response (`afterResponse: true`), so an MCP send on a sync queue doesn't time the
+  client out. 9 feature tests (`McpLiveActionsTest`).
+

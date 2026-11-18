@@ -46,6 +46,11 @@ return [
         'writes' => (bool) env('TRIGGER_ENGAGE_MCP_WRITES', false),
         // Where send_test delivers for server-key callers. Unset = no test sends.
         'test_recipient' => env('TRIGGER_ENGAGE_MCP_TEST_RECIPIENT'),
+        // Live tools: publish or pause a journey, send a broadcast or retry
+        // its failures. Off by default. Each one previews first and needs a
+        // second call with the confirmation the preview returned. Embedded
+        // hosts grant it per caller with `trigger-engage.mcp.can-act`.
+        'live' => (bool) env('TRIGGER_ENGAGE_MCP_LIVE', false),
     ],
 
     'assets_build_directory' => env('TRIGGER_ENGAGE_ASSET_DIRECTORY', $embedded ? 'vendor/trigger-engage/build' : 'build'),

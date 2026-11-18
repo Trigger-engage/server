@@ -5,10 +5,12 @@ an AI agent (Claude Code, Claude Desktop, Cursor or any other MCP client) can re
 people, events, segments, templates, journeys, runs, messages and broadcasts. It can also answer
 the support question that eats the most time: *why didn't this person get that message?*
 
-By default it only reads. If the operator switches drafting on, an agent can also write templates,
-segments, broadcast drafts and journey drafts, and send tests to its own inbox. Nothing an agent makes
-reaches a person: someone publishes the journey or sends the broadcast from the dashboard. See
-[Drafting](#drafting).
+By default it only reads. There are two more levels, each switched on separately:
+
+- **Drafting:** an agent can also write templates, segments, broadcast drafts and journey drafts, and
+  send tests to its own inbox. Nothing it makes reaches a person. See [Drafting](#drafting).
+- **Live actions:** an agent can also publish or pause journeys and send broadcasts, each only after a
+  preview and a second, confirmed call. See [Live actions](#live-actions).
 
 ## Where it lives
 
@@ -114,6 +116,32 @@ once.
 the host's `actor`), what changed and a sentence a person can read. `get_workspace` shows the latest
 ten.
 
+## Live actions
+
+Live tools appear only for callers allowed to act: `TRIGGER_ENGAGE_MCP_LIVE=true` for server keys, or an
+embedded host's own rule. They reach real people, so every one works in two calls:
+
+1. **Preview.** Called without `confirmation`, the tool changes nothing. It returns what would happen
+   and a `confirmation` that lasts ten minutes.
+2. **Confirm.** Called again with that `confirmation`, it acts.
+
+The confirmation is signed over the caller, the action, the record and a fingerprint of everything the
+preview described. It stops working when it expires, when another caller presents it, when it is used
+for another record, when anything in the preview changes in between (the copy is edited, the audience
+grows), and once it has been used. Agents are told to show the preview to the person and confirm only
+after they say yes. Clients see the tools marked destructive, so they ask before each call too.
+
+| Tool | Preview shows | Acting does |
+|---|---|---|
+| `publish_automation` | What goes live, what it replaces, people mid-journey (they stay on their version), trigger events in the last 7 days | Publishes the draft as a new version (re-checked against the editor's builder first), or resumes a paused journey that has no draft |
+| `pause_automation` | People mid-journey (they carry on), trigger events in the last 7 days | Stops new runs |
+| `send_broadcast` | Who receives it and who is skipped and why, the channel, sender, subject and the start of the message | Sends the draft to its segment; refused if nobody could receive it |
+| `retry_broadcast_failures` | How many failed and why | Sends again to the people it failed for (not the skipped) |
+
+Broadcast sends are dispatched after the response goes out, so a large audience on a sync queue doesn't
+hold the agent's request open. Follow progress with `get_broadcast`. Every action is recorded in the
+audit trail.
+
 ## Privacy
 
 - **Contact details are masked.** Emails come back as `a***@e***.com` and phone numbers as
@@ -139,6 +167,7 @@ ten.
 | `TRIGGER_ENGAGE_MCP_DISABLED_TOOLS` | empty | Comma-separated tool names to switch off |
 | `TRIGGER_ENGAGE_MCP_WRITES` | `false` | Offer the drafting tools to server-key callers |
 | `TRIGGER_ENGAGE_MCP_TEST_RECIPIENT` | empty | The only address `send_test` delivers to for server-key callers; empty = no test sends |
+| `TRIGGER_ENGAGE_MCP_LIVE` | `false` | Offer the live tools (publish, pause, send, retry) to server-key callers |
 
 ### Embedded hosts with their own auth
 
@@ -151,9 +180,10 @@ TRIGGER_ENGAGE_MCP_MIDDLEWARE=api,auth:api-admin,can:viewTriggerEngage,trigger-e
 ```
 
 Such a host decides who may draft by setting request attributes in its own middleware:
-`trigger-engage.mcp.can-write` (true/false), `trigger-engage.mcp.test-recipient` (the signed-in
-person's own address) and `trigger-engage.mcp.actor` (a name for the audit trail, e.g. `admin:12`). Hosts
-that wrap the tools in their own MCP server pass the same three things to `Context`.
+`trigger-engage.mcp.can-write` (true/false), `trigger-engage.mcp.can-act` (true/false, for live tools),
+`trigger-engage.mcp.test-recipient` (the signed-in person's own address) and `trigger-engage.mcp.actor`
+(a name for the audit trail, e.g. `admin:12`). Hosts that wrap the tools in their own MCP server pass the
+same things to `Context`.
 
 ## Things to ask an agent
 
