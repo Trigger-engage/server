@@ -37,6 +37,7 @@ Route::post('/templates/preview', [TemplateController::class, 'preview'])->name(
 Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
 Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
 Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
+Route::post('/templates/{template}/default', [TemplateController::class, 'makeDefault'])->name('templates.default');
 Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
 Route::get('/connect', [ConnectController::class, 'index'])->name('connect.index');
 Route::post('/connect/keys', [ConnectController::class, 'store'])->name('connect.keys.store');

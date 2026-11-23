@@ -14,6 +14,7 @@ use TriggerEngage\Server\Engine\TemplateRenderer;
 use TriggerEngage\Server\Http\Controllers\Concerns\EditsMessageContent;
 use TriggerEngage\Server\Http\Controllers\Controller;
 use TriggerEngage\Server\Models\Template;
+use TriggerEngage\Server\Services\BroadcastTemplates;
 
 class TemplateController extends Controller
 {
@@ -32,7 +33,7 @@ class TemplateController extends Controller
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
             'templates' => $workspace->templates()
                 ->orderBy('name')
-                ->get(['id', 'channel', 'name', 'subject', 'layout', 'updated_at']),
+                ->get(['id', 'channel', 'name', 'subject', 'layout', 'is_default', 'updated_at']),
         ]);
     }
 
@@ -76,6 +77,15 @@ class TemplateController extends Controller
         $template->update($this->normalizedContent($data, $workspace));
 
         return back()->with('success', 'Template saved. Future sends will use this version.');
+    }
+
+    /** Make this template the one new broadcasts on its channel start from. */
+    public function makeDefault(Request $request, Template $template, BroadcastTemplates $templates): RedirectResponse
+    {
+        $this->ensureWorkspaceOwns($request->attributes->get('workspace')->id, $template);
+        $templates->makeDefault($template);
+
+        return back()->with('success', "New {$template->channel} broadcasts now start from “{$template->name}”.");
     }
 
     public function preview(Request $request): JsonResponse

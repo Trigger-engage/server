@@ -11,6 +11,7 @@ class Template extends Model
 
     protected $casts = [
         'settings' => 'array',
+        'is_default' => 'boolean',
     ];
 
     public function workspace(): BelongsTo
