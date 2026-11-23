@@ -43,7 +43,12 @@ class BroadcastAudience
         // One conditional-aggregation pass instead of four COUNTs — the index
         // page calls this for every draft. no_destination and suppressed may
         // overlap on the same person; only `sendable` is overlap-safe.
-        $row = $broadcast->segment->people()->selectRaw(
+        //
+        // toBase(): first() on the BelongsToMany would add the segment_person
+        // pivot columns beside these aggregates, which MySQL rejects under
+        // ONLY_FULL_GROUP_BY (its default). SQLite allows it, so only MySQL
+        // ever showed the error.
+        $row = $broadcast->segment->people()->toBase()->selectRaw(
             'count(*) as total'
             .", coalesce(sum(case when {$hasDestination} and not {$suppressed} then 1 else 0 end), 0) as sendable"
             .", coalesce(sum(case when not {$hasDestination} then 1 else 0 end), 0) as no_destination"
