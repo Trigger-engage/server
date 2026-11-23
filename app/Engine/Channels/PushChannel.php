@@ -7,6 +7,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use TriggerEngage\Server\Engine\TemplateRenderer;
+use TriggerEngage\Server\Events\ExpoPushTokenForgotten;
 use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Message;
 use TriggerEngage\Server\Models\Person;
@@ -329,5 +330,9 @@ class PushChannel
         $attributes['expo_push_tokens'] = $remaining;
 
         $person->forceFill(['attributes' => $attributes])->save();
+
+        // Tell the host even when the profile no longer held the token: its
+        // own list is what the next profile sync copies back here.
+        ExpoPushTokenForgotten::dispatch($person, $token);
     }
 }

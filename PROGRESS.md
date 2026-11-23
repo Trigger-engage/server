@@ -588,3 +588,8 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   one per channel). `POST broadcasts` without `template_id` starts from the channel's default.
 - Needs `php artisan migrate`. The MCP `create_broadcast_draft` tool still takes a `template_id`.
   4 feature tests (`DefaultBroadcastTemplateTest`).
+
+## Hosts hear about dead Expo tokens (v0.2.0)
+
+- When Expo reports a token as DeviceNotRegistered, at send time or in the receipt poll, `PushChannel::forgetExpoToken()` now dispatches `TriggerEngage\Server\Events\ExpoPushTokenForgotten` with the person and the token.
+- An embedded host that keeps its own token list listens for it and deletes the token there. Without this, the host's next profile sync wrote the dead token back and every later push to that person failed on it again.
