@@ -16,6 +16,7 @@ use TriggerEngage\Server\Models\Broadcast;
 use TriggerEngage\Server\Models\BroadcastRecipient;
 use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Template;
+use TriggerEngage\Server\Services\BroadcastTemplates;
 use TriggerEngage\Server\Services\BroadcastAudience;
 use TriggerEngage\Server\Services\BroadcastSender;
 
@@ -40,7 +41,10 @@ class BroadcastController extends Controller
             'workspace' => $workspace->only('id', 'public_id', 'name', 'timezone'),
             'preselectedSegmentId' => $preselected,
             'segments' => $workspace->segments()->withCount('people')->orderBy('name')->get(['id', 'public_id', 'name', 'type']),
-            'templates' => $workspace->templates()->orderBy('name')->get(['id', 'name', 'channel', 'subject']),
+            // Each channel's default template exists before the list is read, so
+            // the form can open with it selected.
+            'defaultTemplateIds' => app(BroadcastTemplates::class)->defaultIds($workspace),
+            'templates' => $workspace->templates()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'channel', 'subject', 'is_default']),
             'channels' => $workspace->channels()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'type', 'driver']),
             'broadcasts' => $workspace->broadcasts()->with('segment:id,name', 'template:id,name', 'channelConfiguration:id,name,driver')->withCount([
                 'recipients', 'recipients as sent_count' => fn ($query) => $query->where('status', 'sent'),
@@ -62,9 +66,11 @@ class BroadcastController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'channel' => ['required', Rule::in(['email', 'sms', 'push'])],
             'segment_id' => ['required', Rule::exists('segments', 'id')->where('workspace_id', $workspace->id)],
-            'template_id' => ['required', 'integer'],
+            // Optional: without one, the broadcast starts from the channel's default template.
+            'template_id' => ['nullable', 'integer'],
             'channel_id' => ['required', 'integer'],
         ]);
+        $data['template_id'] ??= app(BroadcastTemplates::class)->defaultFor($workspace, $data['channel'])->id;
         $template = Template::query()->where('workspace_id', $workspace->id)->where('channel', $data['channel'])->find($data['template_id']);
         $channel = Channel::query()->where('workspace_id', $workspace->id)->where('type', $data['channel'])->find($data['channel_id']);
         if (! $template || ! $channel) {

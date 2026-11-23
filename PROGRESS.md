@@ -575,3 +575,16 @@ the workspace's email channel leaves the `log` driver and OneSignal has keys.
   dispatch after the response (`afterResponse: true`), so an MCP send on a sync queue doesn't time the
   client out. 9 feature tests (`McpLiveActionsTest`).
 
+
+## A default template for broadcasts (v0.2.0)
+
+- Each workspace has one **default broadcast template** per channel (`templates.is_default`, like
+  `channels.is_default`). The create form opens with it selected, and switching channel picks that
+  channel's default, so a broadcast no longer waits for someone to write a template first.
+- A workspace without one gets a plain starter the first time the Broadcasts page loads
+  (`Services\BroadcastTemplates`): "Broadcast starter (email|SMS|push)", greeting
+  `{{ person.first_name | default: "there" }}`. The email starter keeps the workspace brand.
+- The Templates page marks the defaults and has **Use for broadcasts** on the rest (`POST templates/{template}/default`,
+  one per channel). `POST broadcasts` without `template_id` starts from the channel's default.
+- Needs `php artisan migrate`. The MCP `create_broadcast_draft` tool still takes a `template_id`.
+  4 feature tests (`DefaultBroadcastTemplateTest`).
