@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Concerns\BuildsWorkspaces;
 use Tests\TestCase;
 use TriggerEngage\Server\Engine\Channels\PushChannel;
+use TriggerEngage\Server\Events\ExpoPushTokenForgotten;
 use TriggerEngage\Server\Jobs\PollExpoPushReceipts;
 use TriggerEngage\Server\Models\Channel;
 use TriggerEngage\Server\Models\Message;
@@ -83,6 +85,7 @@ class ExpoPushTest extends TestCase
 
     public function test_a_dead_token_is_pruned_and_the_send_still_counts_as_sent(): void
     {
+        Event::fake([ExpoPushTokenForgotten::class]);
         Http::fake(['exp.host/*' => Http::response(['data' => [
             ['status' => 'error', 'message' => 'not a registered recipient', 'details' => ['error' => 'DeviceNotRegistered']],
             ['status' => 'ok', 'id' => 'ticket-2'],
@@ -102,6 +105,9 @@ class ExpoPushTest extends TestCase
         $this->assertSame(['ExponentPushToken[live]'], $person->refresh()->getAttribute('attributes')['expo_push_tokens']);
         // Pruning a token must not mute the person for the whole channel.
         $this->assertFalse($person->isSuppressed('push'));
+        // The host hears about it, so its next sync does not bring the token back.
+        Event::assertDispatchedTimes(ExpoPushTokenForgotten::class, 1);
+        Event::assertDispatched(ExpoPushTokenForgotten::class, fn ($event) => $event->token === 'ExponentPushToken[dead]' && $event->person->is($person));
     }
 
     public function test_a_send_fails_when_expo_rejects_every_token(): void
@@ -172,6 +178,7 @@ class ExpoPushTest extends TestCase
 
     public function test_receipt_polling_prunes_a_token_that_died_after_the_send(): void
     {
+        Event::fake([ExpoPushTokenForgotten::class]);
         Http::fake(['exp.host/*' => Http::response(['data' => [
             'ticket-1' => ['status' => 'error', 'message' => 'gone', 'details' => ['error' => 'DeviceNotRegistered']],
         ]])]);
@@ -184,6 +191,7 @@ class ExpoPushTest extends TestCase
         $message->refresh();
         $this->assertSame('failed', $message->status);
         $this->assertSame([], $message->person->getAttribute('attributes')['expo_push_tokens']);
+        Event::assertDispatched(ExpoPushTokenForgotten::class, fn ($event) => $event->token === 'ExponentPushToken[aaaa]' && $event->person->is($message->person));
     }
 
     public function test_receipts_older_than_the_retention_window_stop_being_polled(): void
@@ -300,7 +308,6 @@ class ExpoPushTest extends TestCase
                 ->where('broadcasts.0.audience.no_destination', 1)
             );
     }
-
 
     public function test_expo_push_carries_the_deep_link_and_data_inside_data(): void
     {
